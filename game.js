@@ -54,7 +54,7 @@ function preload(){
     this.load.image("sky","assets/images/sky_day.webp");
     this.load.image("airport","assets/images/airport.webp");
     this.load.image("runway","assets/images/runway.webp");
-    this.load.image("plane","assets/images/plane_trainer.webp");
+    this.load.image("plane","assets/images/plane_trainer.png");
 
     this.load.audio("engine","assets/sound/engine.mp3");
     this.load.audio("wind","assets/sound/wind.mp3");
