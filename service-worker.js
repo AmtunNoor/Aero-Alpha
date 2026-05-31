@@ -8,7 +8,7 @@ const ASSETS = [
 "./assets/images/sky_day.webp",
 "./assets/images/airport.webp",
 "./assets/images/runway.webp",
-"./assets/images/plane.webp",
+"./assets/images/plane_trainer.png",
 "./assets/sound/engine.mp3",
 "./assets/sound/wind.mp3"
 ];
