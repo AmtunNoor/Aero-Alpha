@@ -2,116 +2,219 @@ const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
     height: window.innerHeight,
-    physics: {
-        default: "arcade",
-        arcade: { debug: false }
-    },
+    physics: { default:"arcade", arcade:{ debug:false } },
     scene: { preload, create, update }
 };
 
 new Phaser.Game(config);
 
-const ARABIC = ["ا","ب","ت","ث","ج","ح","خ","د","ذ","ر","ز","س","ش","ص","ض","ط","ظ","ع","غ","ف","ق","ك","ل","م","ن","ه","و","ي"];
+/* ================= AUDIO MAP ================= */
 
-let plane, letters, cursors;
-let targetLetter, targetText;
+const AUDIO_MAP = {
+ "ا":"alif","ب":"ba","ت":"ta","ث":"thaa","ج":"jeem",
+ "ح":"ha","خ":"kha","د":"daal","ذ":"zaal","ر":"raa",
+ "ز":"zaa","س":"seen","ش":"sheen","ص":"saad","ض":"dad",
+ "ط":"toa","ظ":"zaa","ع":"ain","غ":"ghain","ف":"fa",
+ "ق":"qaaf","ك":"kaf","ل":"laam","م":"meem","ن":"noon",
+ "ه":"haa","و":"waw","ي":"yaa"
+};
+
+/* ================= CURRICULUM SYSTEM ================= */
+
+const CURRICULUM = [
+{
+    type:"letters",
+    data:["ا","ب","ت","ث","ج","ح","خ"]
+},
+{
+    type:"words",
+    data:["باب","بيت","قلم"]
+},
+{
+    type:"sentences",
+    data:["هذا باب","أنا أكتب"]
+}
+];
+
+let stageIndex = 0;
+
+/* ================= WORLD STATE ================= */
+
+let plane, letters = [];
+let targetText;
+let target;
 let collected = [];
-let speed = 0, flying = false;
-let audio = {};
 
-function preload() {}
+let engineSound, windSound;
 
-function create() {
+/* ================= AI ================= */
 
-    this.add.rectangle(0,0,config.width*2,config.height*2,0x87CEEB).setOrigin(0);
+const AI = {
+    correct:0, wrong:0,
+    accuracy(){ return this.correct/(this.correct+this.wrong||1); }
+};
 
-    plane = this.physics.add.image(200, config.height-150);
-    plane.setDisplaySize(80,40);
-    plane.setCollideWorldBounds(true);
+/* ================= PRELOAD ================= */
 
-    letters = this.physics.add.group();
+function preload(){
+    this.load.image("sky","assets/images/sky.webp");
+    this.load.image("airport","assets/images/airport.webp");
+    this.load.image("runway","assets/images/runway.webp");
+    this.load.image("plane","assets/images/plane.webp");
 
-    spawnLetters.call(this);
-
-    targetLetter = Phaser.Utils.Array.GetRandom(ARABIC);
-
-    targetText = this.add.text(20,20,"TARGET: "+targetLetter,{
-        fontSize:"30px",
-        fill:"#fff",
-        stroke:"#000",
-        strokeThickness:4
-    });
-
-    cursors = this.input.keyboard.createCursorKeys();
-
-    loadAudio();
-
-    this.physics.add.overlap(plane, letters, collect, null, this);
+    this.load.audio("engine","assets/sound/engine.mp3");
+    this.load.audio("wind","assets/sound/wind.mp3");
 }
 
-function update() {
+/* ================= CREATE ================= */
 
-    if(!flying){
-        speed += 0.05;
-        plane.x += speed;
-        if(speed > 3) flying = true;
-    } else {
-        if(cursors.left.isDown) plane.x -= 5;
-        if(cursors.right.isDown) plane.x += 5;
-        if(cursors.up.isDown) plane.y -= 4;
-        if(cursors.down.isDown) plane.y += 4;
-    }
+function create(){
+
+    engineSound = this.sound.add("engine",{ loop:true, volume:0.4 });
+    windSound = this.sound.add("wind",{ loop:true, volume:0.2 });
+
+    engineSound.play();
+    windSound.play();
+
+    this.add.image(0,0,"sky").setOrigin(0).setDisplaySize(config.width,config.height);
+
+    this.add.image(0,config.height-220,"airport").setOrigin(0).setDisplaySize(config.width,300);
+
+    this.add.image(0,config.height-120,"runway").setOrigin(0).setDisplaySize(config.width,120);
+
+    plane = this.physics.add.image(200,config.height-200,"plane");
+    plane.setDisplaySize(90,50);
+
+    this.cameras.main.startFollow(plane,true,0.05,0.05);
+
+    loadStage(this);
 }
 
-function spawnLetters() {
+/* ================= STAGE LOADER ================= */
 
-    for(let i=0;i<14;i++){
+function loadStage(scene){
 
-        let l = Phaser.Utils.Array.GetRandom(ARABIC);
+    letters.forEach(l=>l.destroy());
+    letters = [];
 
-        let txt = this.add.text(
-            Phaser.Math.Between(200, config.width-100),
-            Phaser.Math.Between(100, config.height-200),
-            l,
-            { fontSize:"48px", color:"#fff" }
+    let stage = CURRICULUM[stageIndex];
+
+    target = Phaser.Utils.Array.GetRandom(stage.data);
+
+    targetText = scene.add.text(20,20,
+        "TARGET: "+target,
+        { fontSize:"32px", fill:"#fff" }
+    );
+
+    spawn(stage, scene);
+}
+
+/* ================= SPAWN ================= */
+
+function spawn(stage, scene){
+
+    stage.data.forEach((item,i)=>{
+
+        let txt = scene.add.text(
+            150+i*120,
+            200,
+            item,
+            { fontSize:"50px", fill:"#fff" }
         );
 
-        this.physics.add.existing(txt);
+        scene.physics.add.existing(txt);
         txt.body.setAllowGravity(false);
 
-        letters.add(txt);
-    }
+        letters.push(txt);
+    });
+
+    scene.physics.add.overlap(plane, letters, collect, null, scene);
 }
 
-function collect(plane, letter) {
+/* ================= UPDATE ================= */
+
+function update(){
+
+    plane.x += 2;
+}
+
+/* ================= COLLECT ================= */
+
+function collect(planeObj, letter){
 
     let v = letter.text;
 
-    if(v === targetLetter){
+    if(v === target){
 
-        if(audio[v]){
-            audio[v].currentTime = 0;
-            audio[v].play();
-        }
+        AI.correct++;
 
         letter.destroy();
 
         collected.push(v);
 
-        let remaining = ARABIC.filter(x=>!collected.includes(x));
+        playReward(this, "correct");
 
-        targetLetter = Phaser.Utils.Array.GetRandom(remaining);
-
-        targetText.setText("TARGET: "+targetLetter);
+        if(allDone()){
+            nextStage(this);
+        }
 
     } else {
-        this.cameras.main.shake(120,0.01);
+        AI.wrong++;
+        this.cameras.main.shake(100,0.01);
     }
 }
 
-function loadAudio() {
+/* ================= STAGE LOGIC ================= */
 
-    ARABIC.forEach(l=>{
-        audio[l] = new Audio(`assets/sounds/letters/${l}.mp3`);
+function allDone(){
+    return letters.every(l=>!l.active);
+}
+
+function nextStage(scene){
+
+    stageIndex++;
+
+    if(stageIndex >= CURRICULUM.length){
+        stageIndex = 0;
+    }
+
+    playCut(scene, ()=>{
+        loadStage(scene);
+    });
+}
+
+/* ================= CUTSCENE ================= */
+
+function playCut(scene, cb){
+
+    let t = scene.add.text(config.width/2,config.height/2,
+        "✈ Moving to next lesson",
+        { fontSize:"40px", fill:"#fff" }
+    ).setOrigin(0.5);
+
+    scene.time.delayedCall(1200,()=>{
+        t.destroy();
+        cb();
+    });
+}
+
+/* ================= REWARD ================= */
+
+function playReward(scene,type){
+
+    let icon = type==="correct" ? "⭐" : "❌";
+
+    let r = scene.add.text(
+        config.width/2,
+        config.height/2,
+        icon,
+        { fontSize:"60px", fill:"#fff" }
+    ).setOrigin(0.5);
+
+    scene.tweens.add({
+        targets:r,
+        y:r.y-100,
+        alpha:0,
+        duration:800
     });
 }
