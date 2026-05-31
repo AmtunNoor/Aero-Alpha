@@ -3,19 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-
-<title>Arabic Flight Academy V13</title>
+<title>Arabic Flight Academy V16</title>
 
 <link rel="manifest" href="manifest.json">
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
 
 <style>
-body {
-    margin:0;
-    overflow:hidden;
-    background:#0b1d39;
-}
+body { margin:0; overflow:hidden; background:#000; }
 canvas { display:block; }
 </style>
 </head>
@@ -25,7 +20,7 @@ canvas { display:block; }
 
 <script>
 if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('./service-worker.js');
+  navigator.serviceWorker.register('./service-worker.js');
 }
 </script>
 
