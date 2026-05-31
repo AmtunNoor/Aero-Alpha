@@ -8,6 +8,35 @@ const config = {
 
 new Phaser.Game(config);
 
+/* ================= WORLD STATE ================= */
+
+const WORLD = {
+    time: 0,
+    speed: 0.02,
+    phase: "day"
+};
+
+/* ================= CURRICULUM ================= */
+
+const CURRICULUM = [
+{ type:"letters", data:["ا","ب","ت","ث","ج","ح","خ"] },
+{ type:"words", data:["باب","بيت","قلم"] },
+{ type:"sentences", data:["هذا باب","أنا أكتب"] }
+];
+
+let stageIndex = 0;
+
+/* ================= GAME OBJECTS ================= */
+
+let plane;
+let letters = [];
+let target;
+let targetText;
+
+let clouds = [];
+
+let engineSound, windSound;
+
 /* ================= AUDIO MAP ================= */
 
 const AUDIO_MAP = {
@@ -19,45 +48,10 @@ const AUDIO_MAP = {
  "ه":"haa","و":"waw","ي":"yaa"
 };
 
-/* ================= CURRICULUM SYSTEM ================= */
-
-const CURRICULUM = [
-{
-    type:"letters",
-    data:["ا","ب","ت","ث","ج","ح","خ"]
-},
-{
-    type:"words",
-    data:["باب","بيت","قلم"]
-},
-{
-    type:"sentences",
-    data:["هذا باب","أنا أكتب"]
-}
-];
-
-let stageIndex = 0;
-
-/* ================= WORLD STATE ================= */
-
-let plane, letters = [];
-let targetText;
-let target;
-let collected = [];
-
-let engineSound, windSound;
-
-/* ================= AI ================= */
-
-const AI = {
-    correct:0, wrong:0,
-    accuracy(){ return this.correct/(this.correct+this.wrong||1); }
-};
-
 /* ================= PRELOAD ================= */
 
 function preload(){
-    this.load.image("sky","assets/images/sky.webp");
+    this.load.image("sky","assets/images/sky_day.webp");
     this.load.image("airport","assets/images/airport.webp");
     this.load.image("runway","assets/images/runway.webp");
     this.load.image("plane","assets/images/plane.webp");
@@ -78,19 +72,87 @@ function create(){
 
     this.add.image(0,0,"sky").setOrigin(0).setDisplaySize(config.width,config.height);
 
-    this.add.image(0,config.height-220,"airport").setOrigin(0).setDisplaySize(config.width,300);
+    this.add.image(0,config.height-220,"airport")
+        .setOrigin(0)
+        .setDisplaySize(config.width,300);
 
-    this.add.image(0,config.height-120,"runway").setOrigin(0).setDisplaySize(config.width,120);
+    this.add.image(0,config.height-120,"runway")
+        .setOrigin(0)
+        .setDisplaySize(config.width,120);
 
     plane = this.physics.add.image(200,config.height-200,"plane");
     plane.setDisplaySize(90,50);
+    plane.setDepth(10);
 
     this.cameras.main.startFollow(plane,true,0.05,0.05);
+
+    createClouds(this);
 
     loadStage(this);
 }
 
-/* ================= STAGE LOADER ================= */
+/* ================= CLOUDS ================= */
+
+function createClouds(scene){
+
+    for(let i=0;i<8;i++){
+
+        let c = scene.add.circle(
+            Math.random()*config.width,
+            Math.random()*200,
+            40,
+            0xffffff,
+            0.15
+        );
+
+        c.speed = 0.2 + Math.random()*0.5;
+        c.setDepth(2);
+
+        clouds.push(c);
+    }
+}
+
+/* ================= SKY SYSTEM ================= */
+
+function updateSky(scene){
+
+    WORLD.time += WORLD.speed;
+    if(WORLD.time > 100) WORLD.time = 0;
+
+    let color = 0x87CEEB;
+
+    if(WORLD.time > 60) color = 0x1B2A49;
+    else if(WORLD.time > 30) color = 0xFF9966;
+
+    scene.cameras.main.setBackgroundColor(color);
+}
+
+/* ================= WIND ================= */
+
+function applyWind(){
+
+    let wind = Math.sin(Date.now()*0.001)*0.5;
+
+    plane.x += wind;
+
+    clouds.forEach(c=>{
+        c.x += wind * c.speed;
+
+        if(c.x > config.width+60){
+            c.x = -60;
+            c.y = Math.random()*200;
+        }
+    });
+}
+
+/* ================= CAMERA ================= */
+
+function updateCamera(scene){
+    let cam = scene.cameras.main;
+    cam.scrollX += (plane.x - cam.scrollX - 200) * 0.05;
+}
+
+/* ================= STAGE ================= */
 
 function loadStage(scene){
 
@@ -101,10 +163,10 @@ function loadStage(scene){
 
     target = Phaser.Utils.Array.GetRandom(stage.data);
 
-    targetText = scene.add.text(20,20,
-        "TARGET: "+target,
-        { fontSize:"32px", fill:"#fff" }
-    );
+    targetText = scene.add.text(20,20,"TARGET: "+target,{
+        fontSize:"32px",
+        fill:"#fff"
+    });
 
     spawn(stage, scene);
 }
@@ -136,85 +198,60 @@ function spawn(stage, scene){
 function update(){
 
     plane.x += 2;
+
+    updateSky(this);
+    applyWind();
+    updateCamera(this);
 }
 
 /* ================= COLLECT ================= */
 
 function collect(planeObj, letter){
 
+    if(!letter || !letter.active) return;
+
     let v = letter.text;
 
     if(v === target){
 
-        AI.correct++;
-
         letter.destroy();
 
-        collected.push(v);
+        this.cameras.main.flash(100);
+        this.cameras.main.shake(80,0.01);
 
-        playReward(this, "correct");
+        speak(v);
 
-        if(allDone()){
+        if(letters.every(l=>!l.active)){
             nextStage(this);
         }
 
     } else {
-        AI.wrong++;
         this.cameras.main.shake(100,0.01);
     }
 }
 
-/* ================= STAGE LOGIC ================= */
+/* ================= VOICE ================= */
 
-function allDone(){
-    return letters.every(l=>!l.active);
+function speak(letter){
+
+    if(!window.speechSynthesis) return;
+
+    let msg = new SpeechSynthesisUtterance(letter);
+    msg.lang = "ar-SA";
+    msg.rate = 0.85;
+    speechSynthesis.speak(msg);
 }
+
+/* ================= NEXT STAGE ================= */
 
 function nextStage(scene){
 
     stageIndex++;
 
-    if(stageIndex >= CURRICULUM.length){
+    if(stageIndex >= CURRICULUM.length)
         stageIndex = 0;
-    }
 
-    playCut(scene, ()=>{
+    scene.time.delayedCall(800, ()=>{
         loadStage(scene);
-    });
-}
-
-/* ================= CUTSCENE ================= */
-
-function playCut(scene, cb){
-
-    let t = scene.add.text(config.width/2,config.height/2,
-        "✈ Moving to next lesson",
-        { fontSize:"40px", fill:"#fff" }
-    ).setOrigin(0.5);
-
-    scene.time.delayedCall(1200,()=>{
-        t.destroy();
-        cb();
-    });
-}
-
-/* ================= REWARD ================= */
-
-function playReward(scene,type){
-
-    let icon = type==="correct" ? "⭐" : "❌";
-
-    let r = scene.add.text(
-        config.width/2,
-        config.height/2,
-        icon,
-        { fontSize:"60px", fill:"#fff" }
-    ).setOrigin(0.5);
-
-    scene.tweens.add({
-        targets:r,
-        y:r.y-100,
-        alpha:0,
-        duration:800
     });
 }
