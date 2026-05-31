@@ -1,0 +1,15 @@
+{
+  "name": "Arabic Flight Adventure",
+  "short_name": "ArabicFlight",
+  "start_url": "index.html",
+  "display": "fullscreen",
+  "background_color": "#87CEEB",
+  "theme_color": "#87CEEB",
+  "icons": [
+    {
+      "src": "icons/512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
