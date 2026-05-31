@@ -54,7 +54,7 @@ function preload(){
     this.load.image("sky","assets/images/sky_day.webp");
     this.load.image("airport","assets/images/airport.webp");
     this.load.image("runway","assets/images/runway.webp");
-    this.load.image("plane","assets/images/plane.webp");
+    this.load.image("plane","assets/images/plane_trainer.webp");
 
     this.load.audio("engine","assets/sound/engine.mp3");
     this.load.audio("wind","assets/sound/wind.mp3");
@@ -84,7 +84,11 @@ function create(){
     plane.setDisplaySize(90,50);
     plane.setDepth(10);
 
-    this.cameras.main.startFollow(plane,true,0.05,0.05);
+    this.input.on("pointermove", (pointer) => {
+    plane.x = pointer.x;
+    plane.y = pointer.y;
+});
+   // this.cameras.main.startFollow(plane,true,0.05,0.05);
 
     createClouds(this);
 
@@ -148,8 +152,8 @@ function applyWind(){
 /* ================= CAMERA ================= */
 
 function updateCamera(scene){
-    let cam = scene.cameras.main;
-    cam.scrollX += (plane.x - cam.scrollX - 200) * 0.05;
+   // let cam = scene.cameras.main;
+    // cam.scrollX += (plane.x - cam.scrollX - 200) * 0.05;
 }
 
 /* ================= STAGE ================= */
@@ -181,7 +185,24 @@ function spawn(stage, scene){
             150+i*120,
             200,
             item,
-            { fontSize:"50px", fill:"#fff" }
+           // { fontSize:"50px", fill:"#fff" }
+            {
+    fontSize:"72px",
+    fontFamily:"Arial",
+    color:"#FFD93D",
+    stroke:"#FFFFFF",
+    strokeThickness:8
+}
+            const COLORS = [
+ "#FF6B6B",
+ "#4ECDC4",
+ "#FFD93D",
+ "#6BCB77",
+ "#4D96FF",
+ "#FF9F1C"
+];
+        color: Phaser.Utils.Array.GetRandom(COLORS)
+        
         );
 
         scene.physics.add.existing(txt);
@@ -197,8 +218,10 @@ function spawn(stage, scene){
 
 function update(){
 
-    plane.x += 2;
-
+  //  plane.x += 2;
+if (plane.x < config.width - 150) {
+    plane.x += 0.5;
+}
     updateSky(this);
     applyWind();
     updateCamera(this);
