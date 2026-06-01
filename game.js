@@ -153,12 +153,12 @@ console.log("sky:", skyImage);
     cloud2.setAlpha(0.25);
 
 //    airport = this.add.image(0, config.height-220, "airport")
-        .setOrigin(0)
-        .setDisplaySize(config.width, 300);
+      //  .setOrigin(0)
+       // .setDisplaySize(config.width, 300);
 
   //  runway = this.add.image(0, config.height-120, "runway")
-        .setOrigin(0)
-        .setDisplaySize(config.width, 120);
+       // .setOrigin(0)
+       // .setDisplaySize(config.width, 120);
 sprAirport = this.add.image(0, config.height - 220, "airport")
     .setOrigin(0)
     .setDisplaySize(config.width, 300);
