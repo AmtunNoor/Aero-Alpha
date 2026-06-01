@@ -1,5 +1,5 @@
 //let airport;
-let plane;
+//let plane;
 let sprAirport;
 let sprRunway;
 let skyImage;
