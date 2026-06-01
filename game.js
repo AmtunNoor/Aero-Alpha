@@ -2,6 +2,7 @@
 //let plane;
 let sprAirport;
 let sprRunway;
+let spawnWave = 0;
 //let skyImage;
 
 const config = {
@@ -203,7 +204,6 @@ function getAirport() {
 }
 
 /* ================= LETTERS ================= */
-
 function spawnLetters() {
 
     letters.forEach(l => l.destroy());
@@ -213,17 +213,17 @@ function spawnLetters() {
 
     for (let i = 0; i < list.length; i++) {
 
-        let lane = Math.floor(Math.random() * LANES.length);
+        let laneBase = Math.random() * config.width;
 
         let txt = sceneRef.add.text(
-            LANES[lane] + Phaser.Math.Between(-40,40),
-            -i * Phaser.Math.Between(80,160),
+            laneBase,
+            -i * 140,
             list[i],
             {
-                fontSize:"80px",
-                color:"#FFD93D",
-                stroke:"#000",
-                strokeThickness:8
+                fontSize: "86px",
+                color: "#FFD93D",
+                stroke: "#000",
+                strokeThickness: 10
             }
         );
 
@@ -232,12 +232,14 @@ function spawnLetters() {
 
         txt.state = "active";
 
+        txt.baseX = laneBase;
+        txt.waveOffset = Math.random() * 1000;
+
         letters.push(txt);
     }
 
     sceneRef.physics.add.overlap(plane, letters, collect);
 }
-
 /* ================= TARGET ================= */
 
 function nextTarget() {
@@ -247,31 +249,35 @@ function nextTarget() {
     let newLetter;
 
     do {
-        newLetter = list[Math.floor(Math.random()*list.length)];
-    } while(newLetter === targetLetter);
+        newLetter = list[Math.floor(Math.random() * list.length)];
+    } while (newLetter === targetLetter);
 
     targetLetter = newLetter;
 
-    if(!targetText) {
-
-        targetText = sceneRef.add.text(
-            config.width/2,
-            60,
-            "",
-            {
-                fontSize:"72px",
-                color:"#FFD93D",
-                stroke:"#000",
-                strokeThickness:10
-            }
-        ).setOrigin(0.5,0);
+    if (!targetText) {
+        targetText = sceneRef.add.text(config.width/2, 60, "", {
+            fontSize: "72px",
+            color: "#FFD93D",
+            stroke: "#000",
+            strokeThickness: 10
+        }).setOrigin(0.5);
     }
 
     targetText.setText("الحرف: " + targetLetter);
 
     playAudio(targetLetter);
-}
 
+    ensureTargetExistsInWorld();
+}
+/* ================= ENSURE TARGET EXISTS IN WORLD ================= */
+function ensureTargetExistsInWorld() {
+
+    const exists = letters.some(l => l.text === targetLetter);
+
+    if (!exists) {
+        spawnLetters(); // regenerate safe pool
+    }
+}
 /* ================= COLLECT ================= */
 
 function collect(_, letter) {
@@ -354,15 +360,23 @@ function update() {
 
     letters.forEach(l => {
 
-        l.y += speedFactor;
+    let speedFactor = boostActive ? speed * 2 : speed;
 
-        if(l.y > config.height + 100) {
+    l.y += speedFactor;
 
-            l.y = -100;
-            l.x = LANES[Math.floor(Math.random()*LANES.length)];
-            l.state = "active";
-        }
-    });
+    // 🌊 wave drift (IMPORTANT)
+    l.x = l.baseX + Math.sin((l.y + l.waveOffset) * 0.01) * 60;
+
+    // recycle
+    if (l.y > config.height + 100) {
+
+        l.y = -100;
+
+        l.baseX = Math.random() * config.width;
+
+        l.state = "active";
+    }
+});
 
     cloud1.tilePositionX += 0.2;
     cloud2.tilePositionX += 0.4;
@@ -389,7 +403,8 @@ if (!sprAirport) {
 }
     const airportData = getAirport(); // ONLY data
 
-    skyImage.setTexture(airportData.sky);
+    // skyImage.setTexture(airportData.sky);
+    skyImage.setTexture(getAirport().sky);
 
     let alpha = 1;
     let tint = 0xffffff;
@@ -439,9 +454,16 @@ function playAudio(letter) {
 
     const key = AUDIO_MAP[letter];
 
-    if(key) sceneRef.sound.play(key);
-}
+    if (!key) return;
 
+    let sound = sceneRef.sound.get(key);
+
+    if (sound) {
+        sound.stop();
+    }
+
+    sceneRef.sound.play(key, { volume: 1 });
+}
 /* ================= BOOST ================= */
 
 function activateBoost() {
@@ -453,20 +475,20 @@ function activateBoost() {
 }
 
 /* ================= PARTICLES ================= */
+function spawnParticles(x, y) {
 
-function spawnParticles(x,y) {
+    for (let i = 0; i < 16; i++) {
 
-    for(let i=0;i<8;i++) {
-
-        let p = sceneRef.add.circle(x,y,6,0xFFD93D);
+        let p = sceneRef.add.circle(x, y, 12, 0xFFD93D);
 
         sceneRef.tweens.add({
-            targets:p,
-            x:x + Phaser.Math.Between(-80,80),
-            y:y + Phaser.Math.Between(-80,80),
-            alpha:0,
-            duration:600,
-            onComplete:()=>p.destroy()
+            targets: p,
+            x: x + Phaser.Math.Between(-150, 150),
+            y: y + Phaser.Math.Between(-150, 150),
+            alpha: 0,
+            duration: 800,
+            onComplete: () => p.destroy()
         });
     }
 }
+
