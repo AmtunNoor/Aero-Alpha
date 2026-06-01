@@ -1,18 +1,3 @@
-//let airport;
-//let plane;
-let sprAirport;
-let sprRunway;
-let spawnWave = 0;
-//let planeTargetX = 0;
-let planeTargetY = 0;
-
-let planeVelX = 0;
-let planeVelY = 0;
-
-let turbulence = 0;
-let turbulenceTimer = 0;
-//let skyImage;
-
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
@@ -26,76 +11,17 @@ const config = {
 
 new Phaser.Game(config);
 
-/* ================= GAME STATE (SELF-CONTAINED) ================= */
-
-const GAME_STATE = {
-    version: "v19.4",
-    score: 0,
-    airportIndex: 0,
-    unlockedAirports: ["basic"],
-    unlockedPlanes: ["plane_trainer"]
-};
-
-/* ================= AIRPORT SYSTEM ================= */
-
-const AIRPORTS = {
-    basic: {
-        sky: "sky_day",
-        letters: ["ا","ب","ت","ث","ج","ح","خ"]
-    },
-    desert: {
-        sky: "sky_sunset",
-        letters: ["ا","ب","ت","ث","ج","ح","خ","د","ذ","ر","ز"]
-    },
-    night: {
-        sky: "sky_night",
-        letters: [
-            "ا","ب","ت","ث","ج","ح","خ","د","ذ","ر",
-            "ز","س","ش","ص","ض","ط","ظ","ع","غ","ف",
-            "ق","ك","ل","م","ن","ه","و","ي"
-        ]
-    }
-};
-
-/* ================= AUDIO MAP ================= */
-
-const AUDIO_MAP = {
-    "ا":"alif",
-    "ب":"ba",
-    "ت":"ta",
-    "ث":"thaa",
-    "ج":"jeem",
-    "ح":"ha",
-    "خ":"kha",
-    "د":"daal",
-    "ذ":"zaal",
-    "ر":"raa",
-    "ز":"zaa",
-    "س":"seen",
-    "ش":"sheen",
-    "ص":"saad",
-    "ض":"dad",
-    "ط":"toa",
-    "ظ":"zoa",
-    "ع":"ain",
-    "غ":"ghain",
-    "ف":"fa",
-    "ق":"qaaf",
-    "ك":"kaf",
-    "ل":"laam",
-    "م":"meem",
-    "ن":"noon",
-    "ه":"haa",
-    "و":"waw",
-    "ي":"yaa"
-};
-
-/* ================= GLOBALS ================= */
+/* ================= STATE ================= */
 
 let sceneRef;
 
 let plane;
-let planeTargetX;
+
+let planeTargetX = 0;
+let planeTargetY = 0;
+
+let velX = 0;
+let velY = 0;
 
 let letters = [];
 let targetLetter;
@@ -108,16 +34,34 @@ let boostTimer = 0;
 let LANES = [];
 
 let skyImage;
-let runway, airport;
+let sprAirport, sprRunway;
+
 let cloud1, cloud2;
+
+/* ================= FULL 28 ARABIC LETTERS ================= */
+
+const LETTERS = [
+"ا","ب","ت","ث","ج","ح","خ","د","ذ","ر","ز",
+"س","ش","ص","ض","ط","ظ","ع","غ","ف","ق",
+"ك","ل","م","ن","ه","و","ي"
+];
+
+/* ================= AUDIO MAP ================= */
+
+const AUDIO_MAP = {
+"ا":"alif","ب":"ba","ت":"ta","ث":"thaa","ج":"jeem","ح":"ha","خ":"kha",
+"د":"daal","ذ":"zaal","ر":"raa","ز":"zaa","س":"seen","ش":"sheen","ص":"saad",
+"ض":"dad","ط":"toa","ظ":"zoa","ع":"ain","غ":"ghain","ف":"fa","ق":"qaaf",
+"ك":"kaf","ل":"laam","م":"meem","ن":"noon","ه":"haa","و":"waw","ي":"yaa"
+};
 
 /* ================= PRELOAD ================= */
 
 function preload() {
 
-    Object.values(AIRPORTS).forEach(a => {
-        this.load.image(a.sky, `assets/images/${a.sky}.webp`);
-    });
+    this.load.image("sky_day","assets/images/sky_day.webp");
+    this.load.image("sky_sunset","assets/images/sky_sunset.webp");
+    this.load.image("sky_night","assets/images/sky_night.webp");
 
     this.load.image("airport","assets/images/airport.png");
     this.load.image("runway","assets/images/runway.png");
@@ -126,84 +70,62 @@ function preload() {
     this.load.image("cloud2","assets/images/clouds_2.png");
 
     this.load.image("plane_trainer","assets/images/plane_trainer.png");
-    this.load.image("plane_falcon","assets/images/plane_falcon.png");
-    this.load.image("plane_glider","assets/images/plane_glider.png");
-    this.load.image("plane_gold","assets/images/plane_gold.png");
-    this.load.image("plane_legend","assets/images/plane_legend.png");
-
-    this.load.audio("engine","assets/sound/engine.mp3");
-    this.load.audio("wind","assets/sound/wind.mp3");
 
     Object.values(AUDIO_MAP).forEach(k => {
         this.load.audio(k, `assets/sound/letters/${k}.mp3`);
     });
+
+    this.load.audio("engine","assets/sound/engine.mp3");
 }
 
 /* ================= CREATE ================= */
 
 function create() {
-console.log("airport sprite:", sprAirport);
-console.log("runway sprite:", sprRunway);
-console.log("sky:", skyImage);
+
     sceneRef = this;
-this.tweens.add({
-    targets: plane,
-    y: plane.y - 8,
-    duration: 1200,
-    yoyo: true,
-    repeat: -1,
-    ease: "Sine.easeInOut"
-});
+
     generateLanes();
 
-    const airportData = getAirport();
-
-    skyImage = this.add.image(0,0,airportData.sky)
+    skyImage = this.add.image(0,0,"sky_day")
         .setOrigin(0)
         .setDisplaySize(config.width, config.height);
 
     cloud1 = this.add.tileSprite(0,120,config.width,200,"cloud1").setOrigin(0);
-    cloud2 = this.add.tileSprite(0,200,config.width,200,"cloud2").setOrigin(0);
+    cloud2 = this.add.tileSprite(0,220,config.width,200,"cloud2").setOrigin(0);
 
-    cloud1.setAlpha(0.35);
-    cloud2.setAlpha(0.25);
+    cloud1.setAlpha(0.3);
+    cloud2.setAlpha(0.2);
 
-//    airport = this.add.image(0, config.height-220, "airport")
-      //  .setOrigin(0)
-       // .setDisplaySize(config.width, 300);
+    sprAirport = this.add.image(0, config.height-220, "airport")
+        .setOrigin(0)
+        .setDisplaySize(config.width, 300);
 
-  //  runway = this.add.image(0, config.height-120, "runway")
-       // .setOrigin(0)
-       // .setDisplaySize(config.width, 120);
-sprAirport = this.add.image(0, config.height - 220, "airport")
-    .setOrigin(0)
-    .setDisplaySize(config.width, 300);
+    sprRunway = this.add.image(0, config.height-120, "runway")
+        .setOrigin(0)
+        .setDisplaySize(config.width, 120);
 
-sprRunway = this.add.image(0, config.height - 120, "runway")
-    .setOrigin(0)
-    .setDisplaySize(config.width, 120);
     plane = this.physics.add.image(config.width/2, config.height*0.75, "plane_trainer");
     plane.setScale(0.3);
     plane.setCollideWorldBounds(true);
 
     planeTargetX = plane.x;
-planeTargetY = plane.y;
-   this.input.on("pointermove", (p) => {
+    planeTargetY = plane.y;
 
-    planeTargetX = Phaser.Math.Clamp(
-        p.x,
-        config.width * 0.1,
-        config.width * 0.9
-    );
+    /* ✈️ premium float animation */
+    this.tweens.add({
+        targets: plane,
+        y: plane.y - 6,
+        duration: 1400,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+    });
 
-    planeTargetY = Phaser.Math.Clamp(
-        p.y,
-        config.height * 0.2,
-        config.height * 0.85
-    );
-});
+    this.input.on("pointermove", (p) => {
 
-    this.input.keyboard.on("keydown-SPACE", activateBoost);
+        planeTargetX = Phaser.Math.Clamp(p.x, config.width*0.1, config.width*0.9);
+        planeTargetY = Phaser.Math.Clamp(p.y, config.height*0.2, config.height*0.85);
+    });
 
     startGame();
 }
@@ -211,74 +133,15 @@ planeTargetY = plane.y;
 /* ================= GAME START ================= */
 
 function startGame() {
-
     spawnLetters();
-
     nextTarget();
-
-    startAudio();
 }
 
-/* ================= AIRPORT ================= */
-
-function getAirport() {
-    return AIRPORTS[
-        GAME_STATE.unlockedAirports[
-            GAME_STATE.unlockedAirports.length - 1
-        ]
-    ];
-}
-
-/* ================= LETTERS ================= */
-function spawnLetters() {
-
-    letters.forEach(l => l.destroy());
-    letters = [];
-
-    const list = getAirport().letters;
-
-    for (let i = 0; i < list.length; i++) {
-
-        let laneBase = Math.random() * config.width;
-
-        let txt = sceneRef.add.text(
-            laneBase,
-            -i * 140,
-            list[i],
-            {
-                fontSize: "86px",
-                color: "#FFD93D",
-                stroke: "#000",
-                strokeThickness: 10
-            }
-        );
-
-        sceneRef.physics.add.existing(txt);
-        txt.body.setAllowGravity(false);
-
-        txt.state = "active";
-
-        txt.baseX = laneBase;
-        txt.waveOffset = Math.random() * 1000;
-
-        letters.push(txt);
-    }
-
-    sceneRef.physics.add.overlap(plane, letters, collect);
-}
 /* ================= TARGET ================= */
 
 function nextTarget() {
 
-    const list = getAirport().letters;
-
-    let newLetter;
-
-    do {
-        newLetter = list[Math.floor(Math.random() * list.length)];
-    } while (newLetter === targetLetter);
-
-    targetLetter = newLetter;
+    targetLetter = LETTERS[Math.floor(Math.random() * LETTERS.length)];
 
     if (!targetText) {
         targetText = sceneRef.add.text(config.width/2, 60, "", {
@@ -293,253 +156,183 @@ function nextTarget() {
 
     playAudio(targetLetter);
 
-    ensureTargetExistsInWorld();
+    ensureTargetExists();
 }
-/* ================= ENSURE TARGET EXISTS IN WORLD ================= */
-function ensureTargetExistsInWorld() {
 
-    const exists = letters.some(l => l.text === targetLetter);
+/* ================= LETTERS ================= */
 
-    if (!exists) {
-        spawnLetters(); // regenerate safe pool
+function spawnLetters() {
+
+    letters.forEach(l => l.destroy());
+    letters = [];
+
+    for (let i = 0; i < LETTERS.length; i++) {
+
+        let txt = sceneRef.add.text(
+            Math.random() * config.width,
+            -i * 140,
+            LETTERS[i],
+            {
+                fontSize: "86px",
+                color: "#FFD93D",
+                stroke: "#000",
+                strokeThickness: 10
+            }
+        );
+
+        sceneRef.physics.add.existing(txt);
+        txt.body.setAllowGravity(false);
+
+        txt.state = "active";
+        txt.baseX = txt.x;
+        txt.wave = Math.random() * 1000;
+
+        letters.push(txt);
     }
-}
-/* ================= COLLECT ================= */
 
-function collect(_, letter) {
-
-    if(letter.state !== "active") return;
-
-    letter.state = "used";
-
-    if(letter.text === targetLetter) {
-
-        GAME_STATE.score++;
-
-        spawnParticles(letter.x, letter.y);
-
-        letter.destroy();
-
-        checkProgression();
-
-        nextTarget();
-
-    } else {
-
-        sceneRef.cameras.main.shake(60,0.008);
-
-        letter.y = -200;
-        letter.state = "active";
-    }
+    sceneRef.physics.add.overlap(plane, letters, collect);
 }
 
-/* ================= PROGRESSION ================= */
-
-function checkProgression() {
-
-    if(GAME_STATE.score === 10) unlockAirport("desert");
-    if(GAME_STATE.score === 25) unlockAirport("night");
-}
-
-function unlockAirport(name) {
-
-    if(!GAME_STATE.unlockedAirports.includes(name)) {
-
-        GAME_STATE.unlockedAirports.push(name);
-
-        sceneRef.cameras.main.flash(150);
-
-        showUnlock(name);
-
-        updateEnvironment();
-    }
-}
-
-function showUnlock(name) {
-
-    let t = sceneRef.add.text(
-        config.width/2,
-        config.height/2,
-        "NEW AIRPORT:\n" + name.toUpperCase(),
-        {
-            fontSize:"48px",
-            color:"#FFD93D",
-            align:"center"
-        }
-    ).setOrigin(0.5);
-
-    sceneRef.tweens.add({
-        targets:t,
-        alpha:0,
-        duration:2000,
-        onComplete:()=>t.destroy()
-    });
-}
-
-/* ================= UPDATE ================= */
+/* ================= UPDATE (PREMIUM PLANE SYSTEM) ================= */
 
 function update() {
 
     updatePlane();
 
-    let speedFactor = boostActive ? speed*2 : speed;
+    let s = boostActive ? speed*2 : speed;
 
     letters.forEach(l => {
 
-    let speedFactor = boostActive ? speed * 2 : speed;
+        l.y += s;
 
-    l.y += speedFactor;
+        /* smooth airflow motion */
+        l.x = l.baseX + Math.sin((l.y + l.wave) * 0.01) * 70;
 
-    // 🌊 wave drift (IMPORTANT)
-    l.x = l.baseX + Math.sin((l.y + l.waveOffset) * 0.01) * 60;
+        if (l.y > config.height + 100) {
+            l.y = -100;
+            l.baseX = Math.random() * config.width;
+        }
+    });
 
-    // recycle
-    if (l.y > config.height + 100) {
-
-        l.y = -100;
-
-        l.baseX = Math.random() * config.width;
-
-        l.state = "active";
-    }
-});
-
-    cloud1.tilePositionX += 0.2;
-    cloud2.tilePositionX += 0.4;
+    cloud1.tilePositionX += 0.3;
+    cloud2.tilePositionX += 0.5;
 
     updateEnvironment();
 }
-/*========Safe Sprite=========*/
-function safeSprite(sprite, fn) {
-    if (sprite && sprite.active) {
-        fn(sprite);
-    }
-}
-/* ================= PLANE ================= */
+
+/* ================= PREMIUM PLANE FEEL (NO JITTER) ================= */
+
 function updatePlane() {
 
-    // 🎯 smooth follow (inertia)
     let dx = planeTargetX - plane.x;
     let dy = planeTargetY - plane.y;
 
-    planeVelX += dx * 0.08;
-    planeVelY += dy * 0.06;
+    velX += dx * 0.08;
+    velY += dy * 0.06;
 
-    // 🌬 turbulence (controlled, not jitter)
-    turbulenceTimer--;
+    velX *= 0.82;
+    velY *= 0.82;
 
-    if (turbulenceTimer <= 0) {
-        turbulence = Phaser.Math.Between(-2, 2);
-        turbulenceTimer = Phaser.Math.Between(40, 120);
-    }
+    plane.x += velX;
+    plane.y += velY;
 
-    planeVelX += turbulence;
-
-    // 🧊 damping (stability)
-    planeVelX *= 0.85;
-    planeVelY *= 0.85;
-
-    // ✈ apply movement
-    plane.x += planeVelX;
-    plane.y += planeVelY;
-
-    // 🧭 tilt effect (visual feel)
-    plane.angle = Phaser.Math.Clamp(planeVelX * 0.3, -15, 15);
+    plane.angle = Phaser.Math.Clamp(velX * 0.3, -18, 18);
 }
+
 /* ================= ENVIRONMENT ================= */
-function updateEnvironment() {
-if (!sprAirport) {
-    console.warn("sprAirport not initialized");
-    return;
-}
-    const airportData = getAirport(); // ONLY data
 
-    // skyImage.setTexture(airportData.sky);
-    skyImage.setTexture(getAirport().sky);
+function updateEnvironment() {
+
+    let t = getTimeMode();
+
+    skyImage.setTexture(t);
 
     let alpha = 1;
-    let tint = 0xffffff;
 
-    if (airportData.sky === "sky_sunset") {
-        alpha = 0.6;
-        tint = 0xffcc88;
-    }
+    if (t === "sky_sunset") alpha = 0.6;
+    if (t === "sky_night") alpha = 0.35;
 
-    if (airportData.sky === "sky_night") {
-        alpha = 0.3;
-        tint = 0x8899ff;
-    }
-
-    // SAFE: sprite references only
     sprAirport.setAlpha(alpha);
     sprRunway.setAlpha(alpha);
-
-    cloud1.setTint(tint);
-    cloud2.setTint(tint);
 }
 
-/* ================= LANE SYSTEM ================= */
+/* ================= SIMPLE TIME MODE ================= */
 
-function generateLanes() {
+function getTimeMode() {
 
-    LANES = [];
+    let x = (Math.sin(Date.now() * 0.0001) + 1) * 0.5;
 
-    let count = 5;
+    if (x < 0.33) return "sky_day";
+    if (x < 0.66) return "sky_sunset";
+    return "sky_night";
+}
 
-    let spacing = config.width / (count + 1);
+/* ================= FIX TARGET SAFETY ================= */
 
-    for(let i=1;i<=count;i++) {
-        LANES.push(i * spacing);
+function ensureTargetExists() {
+
+    if (!letters.some(l => l.text === targetLetter)) {
+        spawnLetters();
+    }
+}
+
+/* ================= COLLECT ================= */
+
+function collect(_, letter) {
+
+    if (letter.state !== "active") return;
+
+    if (letter.text === targetLetter) {
+
+        letter.destroy();
+
+        spawnParticles(letter.x, letter.y);
+
+        nextTarget();
+
+    } else {
+        sceneRef.cameras.main.shake(50, 0.006);
     }
 }
 
 /* ================= AUDIO ================= */
 
-function startAudio() {
-
-    sceneRef.sound.play("engine",{loop:true,volume:0.4});
-    sceneRef.sound.play("wind",{loop:true,volume:0.3});
-}
-
 function playAudio(letter) {
 
-    const key = AUDIO_MAP[letter];
+    let k = AUDIO_MAP[letter];
 
-    if (!key) return;
-
-    let sound = sceneRef.sound.get(key);
-
-    if (sound) {
-        sound.stop();
+    if (k) {
+        let s = sceneRef.sound.get(k);
+        if (s) s.stop();
+        sceneRef.sound.play(k, { volume: 1 });
     }
-
-    sceneRef.sound.play(key, { volume: 1 });
-}
-/* ================= BOOST ================= */
-
-function activateBoost() {
-
-    boostActive = true;
-    sceneRef.cameras.main.flash(80);
-
-    setTimeout(()=>boostActive=false,1200);
 }
 
-/* ================= PARTICLES ================= */
-function spawnParticles(x, y) {
+/* ================= LANE SYSTEM (SAFE EXPANSION) ================= */
 
-    for (let i = 0; i < 16; i++) {
+function generateLanes() {
+    LANES = [];
+    let count = 5;
+    for (let i = 1; i <= count; i++) {
+        LANES.push((config.width / (count + 1)) * i);
+    }
+}
+
+/* ================= PARTICLES (BIG TODDLER FX) ================= */
+
+function spawnParticles(x,y) {
+
+    for (let i = 0; i < 18; i++) {
 
         let p = sceneRef.add.circle(x, y, 12, 0xFFD93D);
 
         sceneRef.tweens.add({
             targets: p,
-            x: x + Phaser.Math.Between(-150, 150),
-            y: y + Phaser.Math.Between(-150, 150),
+            x: x + Phaser.Math.Between(-180,180),
+            y: y + Phaser.Math.Between(-180,180),
             alpha: 0,
-            duration: 800,
+            duration: 700,
             onComplete: () => p.destroy()
         });
     }
 }
-
