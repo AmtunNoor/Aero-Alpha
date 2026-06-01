@@ -15,8 +15,10 @@ new Phaser.Game(config);
 
 let sceneRef;
 
-let plane;
+let GAME_MODE = "RUNNER"; 
+// RUNNER | FREEFLIGHT
 
+let plane;
 let planeTargetX = 0;
 let planeTargetY = 0;
 
@@ -31,14 +33,14 @@ let speed = 4;
 let boostActive = false;
 let boostTimer = 0;
 
-let LANES = [];
-
 let skyImage;
 let sprAirport, sprRunway;
 
 let cloud1, cloud2;
 
-/* ================= FULL 28 ARABIC LETTERS ================= */
+let LANES = [];
+
+/* ================= 28 LETTERS ================= */
 
 const LETTERS = [
 "ا","ب","ت","ث","ج","ح","خ","د","ذ","ر","ز",
@@ -74,8 +76,6 @@ function preload() {
     Object.values(AUDIO_MAP).forEach(k => {
         this.load.audio(k, `assets/sound/letters/${k}.mp3`);
     });
-
-    this.load.audio("engine","assets/sound/engine.mp3");
 }
 
 /* ================= CREATE ================= */
@@ -111,7 +111,7 @@ function create() {
     planeTargetX = plane.x;
     planeTargetY = plane.y;
 
-    /* ✈️ premium float animation */
+    /* ✈️ floating feel */
     this.tweens.add({
         targets: plane,
         y: plane.y - 6,
@@ -124,10 +124,23 @@ function create() {
     this.input.on("pointermove", (p) => {
 
         planeTargetX = Phaser.Math.Clamp(p.x, config.width*0.1, config.width*0.9);
-        planeTargetY = Phaser.Math.Clamp(p.y, config.height*0.2, config.height*0.85);
+        planeTargetY = config.height * 0.7;
     });
 
     startGame();
+}
+
+/* ================= MODE SWITCH ================= */
+
+function switchMode(mode) {
+
+    GAME_MODE = mode;
+
+    letters.forEach(l => l.destroy());
+    letters = [];
+
+    nextTarget();
+    spawnLetters();
 }
 
 /* ================= GAME START ================= */
@@ -137,7 +150,7 @@ function startGame() {
     nextTarget();
 }
 
-/* ================= TARGET ================= */
+/* ================= TARGET SYSTEM ================= */
 
 function nextTarget() {
 
@@ -154,24 +167,25 @@ function nextTarget() {
 
     targetText.setText("الحرف: " + targetLetter);
 
-    playAudio(targetLetter);
-
     ensureTargetExists();
+    playAudio(targetLetter);
 }
 
-/* ================= LETTERS ================= */
+/* ================= LETTER SPAWN ================= */
 
 function spawnLetters() {
 
     letters.forEach(l => l.destroy());
     letters = [];
 
-    for (let i = 0; i < LETTERS.length; i++) {
+    let pool = generateLetterPool(targetLetter);
+
+    for (let i = 0; i < 8; i++) {
 
         let txt = sceneRef.add.text(
             Math.random() * config.width,
             -i * 140,
-            LETTERS[i],
+            pool[Math.floor(Math.random() * pool.length)],
             {
                 fontSize: "86px",
                 color: "#FFD93D",
@@ -193,19 +207,54 @@ function spawnLetters() {
     sceneRef.physics.add.overlap(plane, letters, collect);
 }
 
-/* ================= UPDATE (PREMIUM PLANE SYSTEM) ================= */
+/* ================= UPDATE ================= */
 
 function update() {
 
     updatePlane();
 
-    let s = boostActive ? speed*2 : speed;
+    if (GAME_MODE === "RUNNER") {
+        updateRunner();
+    } else {
+        updateFreeFlight();
+    }
+
+    cloud1.tilePositionX += 0.3;
+    cloud2.tilePositionX += 0.5;
+}
+
+/* ================= RUNNER MODE ================= */
+
+function updateRunner() {
+
+    let s = boostActive ? speed * 2 : speed;
 
     letters.forEach(l => {
 
         l.y += s;
+        l.x = l.baseX + Math.sin((l.y + l.wave) * 0.01) * 50;
 
-        /* smooth airflow motion */
+        if (l.y > config.height + 100) {
+
+            l.y = -150;
+
+            let pool = generateLetterPool(targetLetter);
+            l.text = pool[Math.floor(Math.random() * pool.length)];
+
+            l.baseX = Math.random() * config.width;
+        }
+    });
+}
+
+/* ================= FREE FLIGHT MODE ================= */
+
+function updateFreeFlight() {
+
+    let s = boostActive ? speed * 2 : speed;
+
+    letters.forEach(l => {
+
+        l.y += s;
         l.x = l.baseX + Math.sin((l.y + l.wave) * 0.01) * 70;
 
         if (l.y > config.height + 100) {
@@ -213,14 +262,9 @@ function update() {
             l.baseX = Math.random() * config.width;
         }
     });
-
-    cloud1.tilePositionX += 0.3;
-    cloud2.tilePositionX += 0.5;
-
-    updateEnvironment();
 }
 
-/* ================= PREMIUM PLANE FEEL (NO JITTER) ================= */
+/* ================= PREMIUM PLANE ================= */
 
 function updatePlane() {
 
@@ -239,41 +283,27 @@ function updatePlane() {
     plane.angle = Phaser.Math.Clamp(velX * 0.3, -18, 18);
 }
 
-/* ================= ENVIRONMENT ================= */
-
-function updateEnvironment() {
-
-    let t = getTimeMode();
-
-    skyImage.setTexture(t);
-
-    let alpha = 1;
-
-    if (t === "sky_sunset") alpha = 0.6;
-    if (t === "sky_night") alpha = 0.35;
-
-    sprAirport.setAlpha(alpha);
-    sprRunway.setAlpha(alpha);
-}
-
-/* ================= SIMPLE TIME MODE ================= */
-
-function getTimeMode() {
-
-    let x = (Math.sin(Date.now() * 0.0001) + 1) * 0.5;
-
-    if (x < 0.33) return "sky_day";
-    if (x < 0.66) return "sky_sunset";
-    return "sky_night";
-}
-
-/* ================= FIX TARGET SAFETY ================= */
+/* ================= TARGET SAFETY ================= */
 
 function ensureTargetExists() {
 
     if (!letters.some(l => l.text === targetLetter)) {
         spawnLetters();
     }
+}
+
+/* ================= LETTER POOL ================= */
+
+function generateLetterPool(target) {
+
+    let pool = new Set();
+    pool.add(target);
+
+    while (pool.size < 8) {
+        pool.add(LETTERS[Math.floor(Math.random() * LETTERS.length)]);
+    }
+
+    return Array.from(pool);
 }
 
 /* ================= COLLECT ================= */
@@ -285,13 +315,12 @@ function collect(_, letter) {
     if (letter.text === targetLetter) {
 
         letter.destroy();
-
         spawnParticles(letter.x, letter.y);
 
         nextTarget();
 
     } else {
-        sceneRef.cameras.main.shake(50, 0.006);
+        sceneRef.cameras.main.shake(40, 0.006);
     }
 }
 
@@ -308,17 +337,19 @@ function playAudio(letter) {
     }
 }
 
-/* ================= LANE SYSTEM (SAFE EXPANSION) ================= */
+/* ================= LANE SYSTEM ================= */
 
 function generateLanes() {
+
     LANES = [];
     let count = 5;
+
     for (let i = 1; i <= count; i++) {
         LANES.push((config.width / (count + 1)) * i);
     }
 }
 
-/* ================= PARTICLES (BIG TODDLER FX) ================= */
+/* ================= PARTICLES ================= */
 
 function spawnParticles(x,y) {
 
