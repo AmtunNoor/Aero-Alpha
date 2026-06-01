@@ -1,4 +1,3 @@
-//v19 safe
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
@@ -12,44 +11,36 @@ const config = {
 
 new Phaser.Game(config);
 
-/* ================= GLOBAL STATE ================= */
+/* ================= GAME STATE (SELF-CONTAINED) ================= */
 
-let sceneRef;
+const GAME_STATE = {
+    version: "v19.4",
+    score: 0,
+    airportIndex: 0,
+    unlockedAirports: ["basic"],
+    unlockedPlanes: ["plane_trainer"]
+};
 
-let plane;
-let laneIndex = 1;
+/* ================= AIRPORT SYSTEM ================= */
 
-const LANES = [];
-
-let state = "IDLE";
-
-/* Letters */
-let letters = [];
-let targetLetter;
-let targetText;
-
-/* Core gameplay */
-let speed = 4;
-let boostActive = false;
-let boostTimer = 0;
-
-/* Score & progression */
-let score = 0;
-
-/* Sky system */
-let skyImage;
-let skyIndex = 0;
-const SKY_MODES = ["sky_day", "sky_sunset", "sky_night"];
-
-/* Cloud system */
-let cloud1, cloud2;
-
-/* Hangar */
-let hangarOpen = false;
-
-/* ================= CURRICULUM ================= */
-
-const LETTERS = ["ا","ب","ت","ث","ج","ح","خ"];
+const AIRPORTS = {
+    basic: {
+        sky: "sky_day",
+        letters: ["ا","ب","ت","ث","ج","ح","خ"]
+    },
+    desert: {
+        sky: "sky_sunset",
+        letters: ["ا","ب","ت","ث","ج","ح","خ","د","ذ","ر","ز"]
+    },
+    night: {
+        sky: "sky_night",
+        letters: [
+            "ا","ب","ت","ث","ج","ح","خ","د","ذ","ر",
+            "ز","س","ش","ص","ض","ط","ظ","ع","غ","ف",
+            "ق","ك","ل","م","ن","ه","و","ي"
+        ]
+    }
+};
 
 /* ================= AUDIO MAP ================= */
 
@@ -60,42 +51,76 @@ const AUDIO_MAP = {
     "ث":"thaa",
     "ج":"jeem",
     "ح":"ha",
-    "خ":"kha"
+    "خ":"kha",
+    "د":"daal",
+    "ذ":"zaal",
+    "ر":"raa",
+    "ز":"zaa",
+    "س":"seen",
+    "ش":"sheen",
+    "ص":"saad",
+    "ض":"dad",
+    "ط":"toa",
+    "ظ":"zoa",
+    "ع":"ain",
+    "غ":"ghain",
+    "ف":"fa",
+    "ق":"qaaf",
+    "ك":"kaf",
+    "ل":"laam",
+    "م":"meem",
+    "ن":"noon",
+    "ه":"haa",
+    "و":"waw",
+    "ي":"yaa"
 };
+
+/* ================= GLOBALS ================= */
+
+let sceneRef;
+
+let plane;
+let planeTargetX;
+
+let letters = [];
+let targetLetter;
+let targetText;
+
+let speed = 4;
+let boostActive = false;
+let boostTimer = 0;
+
+let LANES = [];
+
+let skyImage;
+let runway, airport;
+let cloud1, cloud2;
 
 /* ================= PRELOAD ================= */
 
 function preload() {
 
-    // SKY MODES
-    SKY_MODES.forEach(sky => {
-        this.load.image(sky, `assets/images/${sky}.webp`);
+    Object.values(AIRPORTS).forEach(a => {
+        this.load.image(a.sky, `assets/images/${a.sky}.webp`);
     });
 
-    // ENV
     this.load.image("airport","assets/images/airport.png");
     this.load.image("runway","assets/images/runway.png");
 
-    // CLOUDS
     this.load.image("cloud1","assets/images/clouds_1.webp");
     this.load.image("cloud2","assets/images/clouds_2.png");
 
-    // PLANE SKINS
     this.load.image("plane_trainer","assets/images/plane_trainer.png");
     this.load.image("plane_falcon","assets/images/plane_falcon.png");
     this.load.image("plane_glider","assets/images/plane_glider.png");
     this.load.image("plane_gold","assets/images/plane_gold.png");
     this.load.image("plane_legend","assets/images/plane_legend.png");
 
-    // UI
-    this.load.image("ui_panel","assets/images/ui_panel.webp");
-
-    // AUDIO
     this.load.audio("engine","assets/sound/engine.mp3");
     this.load.audio("wind","assets/sound/wind.mp3");
 
-    Object.values(AUDIO_MAP).forEach(key => {
-        this.load.audio(key, `assets/sound/letters/${key}.mp3`);
+    Object.values(AUDIO_MAP).forEach(k => {
+        this.load.audio(k, `assets/sound/letters/${k}.mp3`);
     });
 }
 
@@ -105,80 +130,90 @@ function create() {
 
     sceneRef = this;
 
-    LANES.push(config.width * 0.25);
-    LANES.push(config.width * 0.50);
-    LANES.push(config.width * 0.75);
+    generateLanes();
 
-    /* SKY */
-    skyImage = this.add.image(0,0,"sky_day")
+    const airportData = getAirport();
+
+    skyImage = this.add.image(0,0,airportData.sky)
         .setOrigin(0)
         .setDisplaySize(config.width, config.height);
 
-    /* CLOUDS */
-    cloud1 = this.add.tileSprite(0,100,config.width,200,"cloud1").setOrigin(0);
-    cloud2 = this.add.tileSprite(0,180,config.width,200,"cloud2").setOrigin(0);
+    cloud1 = this.add.tileSprite(0,120,config.width,200,"cloud1").setOrigin(0);
+    cloud2 = this.add.tileSprite(0,200,config.width,200,"cloud2").setOrigin(0);
 
-    /* AIRPORT */
-    this.add.image(0, config.height-220, "airport")
+    cloud1.setAlpha(0.35);
+    cloud2.setAlpha(0.25);
+
+    airport = this.add.image(0, config.height-220, "airport")
         .setOrigin(0)
         .setDisplaySize(config.width, 300);
 
-    this.add.image(0, config.height-120, "runway")
+    runway = this.add.image(0, config.height-120, "runway")
         .setOrigin(0)
         .setDisplaySize(config.width, 120);
 
-    /* PLANE */
-    plane = this.physics.add.image(LANES[1], config.height * 0.75, "plane_trainer");
+    plane = this.physics.add.image(config.width/2, config.height*0.75, "plane_trainer");
     plane.setScale(0.3);
     plane.setCollideWorldBounds(true);
 
-    /* INPUT */
-    this.input.keyboard.on("keydown-LEFT", () => moveLane(-1));
-    this.input.keyboard.on("keydown-RIGHT", () => moveLane(1));
-    this.input.keyboard.on("keydown-SPACE", () => activateBoost());
+    planeTargetX = plane.x;
 
-    startGame(this);
+    this.input.on("pointermove", (p) => {
+        planeTargetX = Phaser.Math.Clamp(p.x, config.width*0.1, config.width*0.9);
+    });
+
+    this.input.keyboard.on("keydown-SPACE", activateBoost);
+
+    startGame();
 }
 
-/* ================= GAME FLOW ================= */
+/* ================= GAME START ================= */
 
-function startGame(scene) {
+function startGame() {
 
-    state = "FLIGHT";
-
-    spawnLetters(scene);
+    spawnLetters();
 
     nextTarget();
 
     startAudio();
-
-    startSkyCycle();
 }
 
-/* ================= LETTER SYSTEM ================= */
+/* ================= AIRPORT ================= */
 
-function spawnLetters(scene) {
+function getAirport() {
+    return AIRPORTS[
+        GAME_STATE.unlockedAirports[
+            GAME_STATE.unlockedAirports.length - 1
+        ]
+    ];
+}
+
+/* ================= LETTERS ================= */
+
+function spawnLetters() {
 
     letters.forEach(l => l.destroy());
     letters = [];
 
-    for (let i = 0; i < LETTERS.length; i++) {
+    const list = getAirport().letters;
 
-        let lane = Math.floor(Math.random() * 3);
+    for (let i = 0; i < list.length; i++) {
 
-        let txt = scene.add.text(
-            LANES[lane],
-            -i * 120,
-            LETTERS[i],
+        let lane = Math.floor(Math.random() * LANES.length);
+
+        let txt = sceneRef.add.text(
+            LANES[lane] + Phaser.Math.Between(-40,40),
+            -i * Phaser.Math.Between(80,160),
+            list[i],
             {
-                fontSize: "80px",
-                color: "#FFD93D",
-                stroke: "#000",
-                strokeThickness: 8
+                fontSize:"80px",
+                color:"#FFD93D",
+                stroke:"#000",
+                strokeThickness:8
             }
         );
 
-        scene.physics.add.existing(txt);
+        sceneRef.physics.add.existing(txt);
         txt.body.setAllowGravity(false);
 
         txt.state = "active";
@@ -186,22 +221,25 @@ function spawnLetters(scene) {
         letters.push(txt);
     }
 
-    scene.physics.add.overlap(plane, letters, collect, null, scene);
+    sceneRef.physics.add.overlap(plane, letters, collect);
 }
 
-/* ================= TARGET SYSTEM ================= */
+/* ================= TARGET ================= */
 
 function nextTarget() {
+
+    const list = getAirport().letters;
 
     let newLetter;
 
     do {
-        newLetter = LETTERS[Math.floor(Math.random() * LETTERS.length)];
-    } while (newLetter === targetLetter);
+        newLetter = list[Math.floor(Math.random()*list.length)];
+    } while(newLetter === targetLetter);
 
     targetLetter = newLetter;
 
-    if (!targetText) {
+    if(!targetText) {
+
         targetText = sceneRef.add.text(
             config.width/2,
             60,
@@ -222,110 +260,174 @@ function nextTarget() {
 
 /* ================= COLLECT ================= */
 
-function collect(planeObj, letter) {
+function collect(_, letter) {
 
-    if (letter.state !== "active") return;
+    if(letter.state !== "active") return;
 
     letter.state = "used";
 
-    if (letter.text === targetLetter) {
+    if(letter.text === targetLetter) {
 
-        score++;
+        GAME_STATE.score++;
 
         spawnParticles(letter.x, letter.y);
+
         letter.destroy();
+
+        checkProgression();
 
         nextTarget();
 
     } else {
 
-        sceneRef.cameras.main.shake(80,0.01);
+        sceneRef.cameras.main.shake(60,0.008);
 
         letter.y = -200;
         letter.state = "active";
     }
 }
 
+/* ================= PROGRESSION ================= */
+
+function checkProgression() {
+
+    if(GAME_STATE.score === 10) unlockAirport("desert");
+    if(GAME_STATE.score === 25) unlockAirport("night");
+}
+
+function unlockAirport(name) {
+
+    if(!GAME_STATE.unlockedAirports.includes(name)) {
+
+        GAME_STATE.unlockedAirports.push(name);
+
+        sceneRef.cameras.main.flash(150);
+
+        showUnlock(name);
+
+        updateEnvironment();
+    }
+}
+
+function showUnlock(name) {
+
+    let t = sceneRef.add.text(
+        config.width/2,
+        config.height/2,
+        "NEW AIRPORT:\n" + name.toUpperCase(),
+        {
+            fontSize:"48px",
+            color:"#FFD93D",
+            align:"center"
+        }
+    ).setOrigin(0.5);
+
+    sceneRef.tweens.add({
+        targets:t,
+        alpha:0,
+        duration:2000,
+        onComplete:()=>t.destroy()
+    });
+}
+
 /* ================= UPDATE ================= */
 
 function update() {
 
-    if (state !== "FLIGHT") return;
+    updatePlane();
 
-    let currentSpeed = boostActive ? speed * 2 : speed;
+    let speedFactor = boostActive ? speed*2 : speed;
 
     letters.forEach(l => {
 
-        l.y += currentSpeed;
+        l.y += speedFactor;
 
-        if (l.y > config.height + 100) {
+        if(l.y > config.height + 100) {
+
             l.y = -100;
+            l.x = LANES[Math.floor(Math.random()*LANES.length)];
             l.state = "active";
-            l.x = LANES[Math.floor(Math.random()*3)];
         }
     });
 
     cloud1.tilePositionX += 0.2;
-    cloud2.tilePositionX += 0.5;
+    cloud2.tilePositionX += 0.4;
+
+    updateEnvironment();
 }
 
-/* ================= MOVEMENT ================= */
+/* ================= PLANE ================= */
 
-function moveLane(dir) {
-
-    laneIndex += dir;
-
-    if (laneIndex < 0) laneIndex = 0;
-    if (laneIndex > 2) laneIndex = 2;
-
-    plane.x = LANES[laneIndex];
+function updatePlane() {
+    plane.x += (planeTargetX - plane.x) * 0.15;
 }
 
-/* ================= BOOST ================= */
+/* ================= ENVIRONMENT ================= */
 
-function activateBoost() {
+function updateEnvironment() {
 
-    if (boostActive) return;
+    const airport = getAirport();
 
-    boostActive = true;
-    boostTimer = 120;
+    skyImage.setTexture(airport.sky);
 
-    sceneRef.cameras.main.flash(80);
+    let alpha = 1;
+    let tint = 0xffffff;
+
+    if(airport.sky === "sky_sunset") { alpha = 0.6; tint = 0xffcc88; }
+    if(airport.sky === "sky_night") { alpha = 0.3; tint = 0x8899ff; }
+
+    runway.setAlpha(alpha);
+    airport.setAlpha(alpha);
+
+    cloud1.setTint(tint);
+    cloud2.setTint(tint);
+}
+
+/* ================= LANE SYSTEM ================= */
+
+function generateLanes() {
+
+    LANES = [];
+
+    let count = 5;
+
+    let spacing = config.width / (count + 1);
+
+    for(let i=1;i<=count;i++) {
+        LANES.push(i * spacing);
+    }
 }
 
 /* ================= AUDIO ================= */
 
 function startAudio() {
 
-    sceneRef.sound.play("engine", { loop:true, volume:0.4 });
-    sceneRef.sound.play("wind", { loop:true, volume:0.3 });
+    sceneRef.sound.play("engine",{loop:true,volume:0.4});
+    sceneRef.sound.play("wind",{loop:true,volume:0.3});
 }
 
 function playAudio(letter) {
 
     const key = AUDIO_MAP[letter];
 
-    if (key) sceneRef.sound.play(key);
+    if(key) sceneRef.sound.play(key);
 }
 
-/* ================= SKY SYSTEM ================= */
+/* ================= BOOST ================= */
 
-function startSkyCycle() {
+function activateBoost() {
 
-    setInterval(() => {
+    boostActive = true;
+    sceneRef.cameras.main.flash(80);
 
-        skyIndex = (skyIndex + 1) % SKY_MODES.length;
-
-        skyImage.setTexture(SKY_MODES[skyIndex]);
-
-    }, 25000);
+    setTimeout(()=>boostActive=false,1200);
 }
 
 /* ================= PARTICLES ================= */
 
 function spawnParticles(x,y) {
 
-    for (let i=0;i<8;i++) {
+    for(let i=0;i<8;i++) {
 
         let p = sceneRef.add.circle(x,y,6,0xFFD93D);
 
