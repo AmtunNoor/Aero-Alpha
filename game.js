@@ -1,3 +1,4 @@
+//v19 safe
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
@@ -11,7 +12,7 @@ const config = {
 
 new Phaser.Game(config);
 
-/* ================= STATE ================= */
+/* ================= GLOBAL STATE ================= */
 
 let sceneRef;
 
@@ -22,13 +23,29 @@ const LANES = [];
 
 let state = "IDLE";
 
+/* Letters */
 let letters = [];
 let targetLetter;
 let targetText;
 
+/* Core gameplay */
 let speed = 4;
 let boostActive = false;
 let boostTimer = 0;
+
+/* Score & progression */
+let score = 0;
+
+/* Sky system */
+let skyImage;
+let skyIndex = 0;
+const SKY_MODES = ["sky_day", "sky_sunset", "sky_night"];
+
+/* Cloud system */
+let cloud1, cloud2;
+
+/* Hangar */
+let hangarOpen = false;
 
 /* ================= CURRICULUM ================= */
 
@@ -37,29 +54,46 @@ const LETTERS = ["ا","ب","ت","ث","ج","ح","خ"];
 /* ================= AUDIO MAP ================= */
 
 const AUDIO_MAP = {
-  "ا":"alif",
-  "ب":"ba",
-  "ت":"ta",
-  "ث":"thaa",
-  "ج":"jeem",
-  "ح":"ha",
-  "خ":"kha"
+    "ا":"alif",
+    "ب":"ba",
+    "ت":"ta",
+    "ث":"thaa",
+    "ج":"jeem",
+    "ح":"ha",
+    "خ":"kha"
 };
 
 /* ================= PRELOAD ================= */
 
 function preload() {
 
-    this.load.image("sky","assets/images/sky_day.webp");
+    // SKY MODES
+    SKY_MODES.forEach(sky => {
+        this.load.image(sky, `assets/images/${sky}.webp`);
+    });
+
+    // ENV
     this.load.image("airport","assets/images/airport.png");
     this.load.image("runway","assets/images/runway.png");
 
-    this.load.image("plane","assets/images/plane_trainer.png");
+    // CLOUDS
+    this.load.image("cloud1","assets/images/clouds_1.webp");
+    this.load.image("cloud2","assets/images/clouds_2.png");
 
+    // PLANE SKINS
+    this.load.image("plane_trainer","assets/images/plane_trainer.png");
+    this.load.image("plane_falcon","assets/images/plane_falcon.png");
+    this.load.image("plane_glider","assets/images/plane_glider.png");
+    this.load.image("plane_gold","assets/images/plane_gold.png");
+    this.load.image("plane_legend","assets/images/plane_legend.png");
+
+    // UI
+    this.load.image("ui_panel","assets/images/ui_panel.webp");
+
+    // AUDIO
     this.load.audio("engine","assets/sound/engine.mp3");
     this.load.audio("wind","assets/sound/wind.mp3");
 
-    // Arabic letters audio (safe preload for current module)
     Object.values(AUDIO_MAP).forEach(key => {
         this.load.audio(key, `assets/sound/letters/${key}.mp3`);
     });
@@ -76,9 +110,13 @@ function create() {
     LANES.push(config.width * 0.75);
 
     /* SKY */
-    this.add.image(0,0,"sky")
+    skyImage = this.add.image(0,0,"sky_day")
         .setOrigin(0)
         .setDisplaySize(config.width, config.height);
+
+    /* CLOUDS */
+    cloud1 = this.add.tileSprite(0,100,config.width,200,"cloud1").setOrigin(0);
+    cloud2 = this.add.tileSprite(0,180,config.width,200,"cloud2").setOrigin(0);
 
     /* AIRPORT */
     this.add.image(0, config.height-220, "airport")
@@ -90,7 +128,7 @@ function create() {
         .setDisplaySize(config.width, 120);
 
     /* PLANE */
-    plane = this.physics.add.image(LANES[1], config.height * 0.75, "plane");
+    plane = this.physics.add.image(LANES[1], config.height * 0.75, "plane_trainer");
     plane.setScale(0.3);
     plane.setCollideWorldBounds(true);
 
@@ -99,59 +137,25 @@ function create() {
     this.input.keyboard.on("keydown-RIGHT", () => moveLane(1));
     this.input.keyboard.on("keydown-SPACE", () => activateBoost());
 
-    this.input.on("pointermove", (p) => {
-        if (p.x < config.width/2) moveLane(-1);
-        else moveLane(1);
-    });
-
-    /* START GAME FLOW */
-    startTakeoff(this);
+    startGame(this);
 }
 
-/* ================= TAKEOFF ================= */
+/* ================= GAME FLOW ================= */
 
-function startTakeoff(scene) {
-
-    state = "TAKEOFF";
-
-    scene.tweens.add({
-        targets: plane,
-        y: config.height * 0.6,
-        angle: -10,
-        duration: 2000,
-        onComplete: () => {
-            startFlight(scene);
-        }
-    });
-}
-
-/* ================= FLIGHT ================= */
-
-function startFlight(scene) {
+function startGame(scene) {
 
     state = "FLIGHT";
 
     spawnLetters(scene);
 
-    targetLetter = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+    nextTarget();
 
-    targetText = scene.add.text(
-        config.width/2,
-        60,
-        "الحرف: " + targetLetter,
-        {
-            fontSize:"72px",
-            color:"#FFD93D",
-            stroke:"#000",
-            strokeThickness:10,
-            fontFamily:"Arial"
-        }
-    ).setOrigin(0.5,0);
+    startAudio();
 
-    playTargetAudio();
+    startSkyCycle();
 }
 
-/* ================= LETTERS ================= */
+/* ================= LETTER SYSTEM ================= */
 
 function spawnLetters(scene) {
 
@@ -168,9 +172,8 @@ function spawnLetters(scene) {
             LETTERS[i],
             {
                 fontSize: "80px",
-                fontFamily: "Arial",
                 color: "#FFD93D",
-                stroke: "#fff",
+                stroke: "#000",
                 strokeThickness: 8
             }
         );
@@ -178,13 +181,69 @@ function spawnLetters(scene) {
         scene.physics.add.existing(txt);
         txt.body.setAllowGravity(false);
 
-        txt.lane = lane;
-        txt.activeHit = true;   // 🔥 prevents turbulence spam
+        txt.state = "active";
 
         letters.push(txt);
     }
 
     scene.physics.add.overlap(plane, letters, collect, null, scene);
+}
+
+/* ================= TARGET SYSTEM ================= */
+
+function nextTarget() {
+
+    let newLetter;
+
+    do {
+        newLetter = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+    } while (newLetter === targetLetter);
+
+    targetLetter = newLetter;
+
+    if (!targetText) {
+        targetText = sceneRef.add.text(
+            config.width/2,
+            60,
+            "",
+            {
+                fontSize:"72px",
+                color:"#FFD93D",
+                stroke:"#000",
+                strokeThickness:10
+            }
+        ).setOrigin(0.5,0);
+    }
+
+    targetText.setText("الحرف: " + targetLetter);
+
+    playAudio(targetLetter);
+}
+
+/* ================= COLLECT ================= */
+
+function collect(planeObj, letter) {
+
+    if (letter.state !== "active") return;
+
+    letter.state = "used";
+
+    if (letter.text === targetLetter) {
+
+        score++;
+
+        spawnParticles(letter.x, letter.y);
+        letter.destroy();
+
+        nextTarget();
+
+    } else {
+
+        sceneRef.cameras.main.shake(80,0.01);
+
+        letter.y = -200;
+        letter.state = "active";
+    }
 }
 
 /* ================= UPDATE ================= */
@@ -201,19 +260,16 @@ function update() {
 
         if (l.y > config.height + 100) {
             l.y = -100;
-            l.lane = Math.floor(Math.random() * 3);
-            l.x = LANES[l.lane];
-            l.activeHit = true; // reset safely on recycle
+            l.state = "active";
+            l.x = LANES[Math.floor(Math.random()*3)];
         }
     });
 
-    if (boostActive) {
-        boostTimer--;
-        if (boostTimer <= 0) boostActive = false;
-    }
+    cloud1.tilePositionX += 0.2;
+    cloud2.tilePositionX += 0.5;
 }
 
-/* ================= MOVE LANES ================= */
+/* ================= MOVEMENT ================= */
 
 function moveLane(dir) {
 
@@ -237,65 +293,49 @@ function activateBoost() {
     sceneRef.cameras.main.flash(80);
 }
 
-/* ================= COLLECT ================= */
+/* ================= AUDIO ================= */
 
-function collect(planeObj, letter) {
+function startAudio() {
 
-    if (!letter.activeHit) return;
-
-    letter.activeHit = false; // 🔥 prevents repeated turbulence
-
-    if (letter.text === targetLetter) {
-
-        letter.destroy();
-
-        sceneRef.cameras.main.flash(80);
-
-        spawnParticles(letter.x, letter.y);
-
-        nextTarget(); // 🔥 change target after success
-
-    } else {
-
-        sceneRef.cameras.main.shake(100, 0.01);
-    }
+    sceneRef.sound.play("engine", { loop:true, volume:0.4 });
+    sceneRef.sound.play("wind", { loop:true, volume:0.3 });
 }
 
-/* ================= NEXT TARGET ================= */
+function playAudio(letter) {
 
-function nextTarget() {
+    const key = AUDIO_MAP[letter];
 
-    targetLetter = LETTERS[Math.floor(Math.random() * LETTERS.length)];
-
-    targetText.setText("الحرف: " + targetLetter);
-
-    playTargetAudio();
+    if (key) sceneRef.sound.play(key);
 }
 
-function playTargetAudio() {
+/* ================= SKY SYSTEM ================= */
 
-    const key = AUDIO_MAP[targetLetter];
+function startSkyCycle() {
 
-    if (key && sceneRef.sound.get(key)) {
-        sceneRef.sound.play(key);
-    }
+    setInterval(() => {
+
+        skyIndex = (skyIndex + 1) % SKY_MODES.length;
+
+        skyImage.setTexture(SKY_MODES[skyIndex]);
+
+    }, 25000);
 }
 
-/* ================= PARTICLE FX ================= */
+/* ================= PARTICLES ================= */
 
-function spawnParticles(x, y) {
+function spawnParticles(x,y) {
 
-    for (let i = 0; i < 8; i++) {
+    for (let i=0;i<8;i++) {
 
-        let p = sceneRef.add.circle(x, y, 6, 0xFFD93D);
+        let p = sceneRef.add.circle(x,y,6,0xFFD93D);
 
         sceneRef.tweens.add({
-            targets: p,
-            x: x + Phaser.Math.Between(-80, 80),
-            y: y + Phaser.Math.Between(-80, 80),
-            alpha: 0,
-            duration: 600,
-            onComplete: () => p.destroy()
+            targets:p,
+            x:x + Phaser.Math.Between(-80,80),
+            y:y + Phaser.Math.Between(-80,80),
+            alpha:0,
+            duration:600,
+            onComplete:()=>p.destroy()
         });
     }
 }
