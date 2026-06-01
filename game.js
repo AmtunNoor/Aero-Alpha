@@ -3,7 +3,7 @@
 let sprAirport;
 let sprRunway;
 let spawnWave = 0;
-let planeTargetX = 0;
+//let planeTargetX = 0;
 let planeTargetY = 0;
 
 let planeVelX = 0;
