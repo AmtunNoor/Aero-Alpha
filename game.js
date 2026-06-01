@@ -133,7 +133,9 @@ function preload() {
 /* ================= CREATE ================= */
 
 function create() {
-
+console.log("airport sprite:", sprAirport);
+console.log("runway sprite:", sprRunway);
+console.log("sky:", skyImage);
     sceneRef = this;
 
     generateLanes();
