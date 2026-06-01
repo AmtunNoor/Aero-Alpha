@@ -1,3 +1,9 @@
+//let airport;
+let plane;
+let sprAirport;
+let sprRunway;
+let skyImage;
+
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
@@ -144,14 +150,20 @@ function create() {
     cloud1.setAlpha(0.35);
     cloud2.setAlpha(0.25);
 
-    airport = this.add.image(0, config.height-220, "airport")
+//    airport = this.add.image(0, config.height-220, "airport")
         .setOrigin(0)
         .setDisplaySize(config.width, 300);
 
-    runway = this.add.image(0, config.height-120, "runway")
+  //  runway = this.add.image(0, config.height-120, "runway")
         .setOrigin(0)
         .setDisplaySize(config.width, 120);
+sprAirport = this.add.image(0, config.height - 220, "airport")
+    .setOrigin(0)
+    .setDisplaySize(config.width, 300);
 
+sprRunway = this.add.image(0, config.height - 120, "runway")
+    .setOrigin(0)
+    .setDisplaySize(config.width, 120);
     plane = this.physics.add.image(config.width/2, config.height*0.75, "plane_trainer");
     plane.setScale(0.3);
     plane.setCollideWorldBounds(true);
@@ -355,7 +367,12 @@ function update() {
 
     updateEnvironment();
 }
-
+/*========Safe Sprite=========*/
+function safeSprite(sprite, fn) {
+    if (sprite && sprite.active) {
+        fn(sprite);
+    }
+}
 /* ================= PLANE ================= */
 
 function updatePlane() {
@@ -363,21 +380,31 @@ function updatePlane() {
 }
 
 /* ================= ENVIRONMENT ================= */
-
 function updateEnvironment() {
+if (!sprAirport) {
+    console.warn("sprAirport not initialized");
+    return;
+}
+    const airportData = getAirport(); // ONLY data
 
-    const airport = getAirport();
-
-    skyImage.setTexture(airport.sky);
+    skyImage.setTexture(airportData.sky);
 
     let alpha = 1;
     let tint = 0xffffff;
 
-    if(airport.sky === "sky_sunset") { alpha = 0.6; tint = 0xffcc88; }
-    if(airport.sky === "sky_night") { alpha = 0.3; tint = 0x8899ff; }
+    if (airportData.sky === "sky_sunset") {
+        alpha = 0.6;
+        tint = 0xffcc88;
+    }
 
-    runway.setAlpha(alpha);
-    airport.setAlpha(alpha);
+    if (airportData.sky === "sky_night") {
+        alpha = 0.3;
+        tint = 0x8899ff;
+    }
+
+    // SAFE: sprite references only
+    sprAirport.setAlpha(alpha);
+    sprRunway.setAlpha(alpha);
 
     cloud1.setTint(tint);
     cloud2.setTint(tint);
