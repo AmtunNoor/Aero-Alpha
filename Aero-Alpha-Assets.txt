@@ -1,0 +1,99 @@
+assets/image
+File Name	Size	Type
+airport.png	336,591 bytes	PNG
+burst_fx.webp	102,007 bytes	WebP
+clouds_1.webp	105,386 bytes	WebP
+clouds_2.png	518,362 bytes	PNG
+plane_falcon.png	103,009 bytes	PNG
+plane_glider.png	99,574 bytes	PNG
+plane_gold.png	112,359 bytes	PNG
+plane_legend.png	125,551 bytes	PNG
+plane_trainer.png	1,562,219 bytes	PNG
+runway.png	351,811 bytes	PNG
+sky_day.webp	33,706 bytes	WebP
+sky_night.webp	53,998 bytes	WebP
+sky_sunset.webp	45,415 bytes	WebP
+star_particle.webp	86,338 bytes	WebP
+ui_panel.webp	49,150 bytes	webp
+
+*************"****************
+assets/font
+File Name	Size	Type
+BalooBhaijaan2-ExtraBold.ttf	176,340 bytes	TTF font
+*************"****************
+assets/sound/
+Root Level Files:
+File Name	Size	Type
+engine.mp3	205,920 bytes	MP3
+wind.mp3	165,511 bytes	MP3
+
+
+Subdirectory: assets/sound/letters/
+File Name	Size	Type
+ain.mp3	54,710 bytes	MP3
+alif.mp3	52,233 bytes	MP3
+ba.mp3	53,580 bytes	MP3
+daal.mp3	78,568 bytes	MP3
+dad.mp3	63,456 bytes	MP3
+fa.mp3	59,665 bytes	MP3
+ghain.mp3	59,711 bytes	MP3
+ha.mp3	55,122 bytes	MP3
+haa.mp3	55,146 bytes	MP3
+jeem.mp3	56,692 bytes	MP3
+kaf.mp3	58,171 bytes	MP3
+kha.mp3	55,111 bytes	MP3
+laam.mp3	58,887 bytes	MP3
+m	1 byte	Text/File
+meem.mp3	63,853 bytes	MP3
+noon.mp3	62,387 bytes	MP3
+qaaf.mp3	59,723 bytes	MP3
+raa.mp3	61,584 bytes	MP3
+saad.mp3	59,673 bytes	MP3
+seen.mp3	57,444 bytes	MP3
+sheen.mp3	61,552 bytes	MP3
+ta.mp3	52,452 bytes	MP3
+thaa.mp3	54,729 bytes	MP3
+toa.mp3	56,254 bytes	MP3
+waw.mp3	64,957 bytes	MP3
+yaa.mp3	58,211 bytes	MP3
+zaa.mp3	66,947 bytes	MP3
+zaal.mp3	53,596 bytes	MP3
+zoa.mp3	64,596 bytes	MP3
+Summary:
+
+Root level: 2 MP3 files (engine, wind)
+letters subdirectory: 29 files (28 MP3 audio files for Arabic letters + 1 text file "m")
+Total: 31 files in the sound directory
+
+*************"****************
+
+const AUDIO_MAP = {
+  "ا":"alif",
+  "ب":"ba",
+  "ت":"ta",
+  "ث":"thaa",
+  "ج":"jeem",
+  "ح":"ha",     // ح = ha
+  "خ":"kha",
+  "د":"daal",
+  "ذ":"zaal",
+  "ر":"raa",
+  "ز":"zaa",
+  "س":"seen",
+  "ش":"sheen",
+  "ص":"saad",
+  "ض":"dad",
+  "ط":"toa",
+  "ظ":"zoa",
+  "ع":"ain",
+  "غ":"ghain",
+  "ف":"fa",
+  "ق":"qaaf",
+  "ك":"kaf",
+  "ل":"laam",
+  "م":"meem",
+  "ن":"noon",
+  "ه":"haa",    // ه = haa
+  "و":"waw",
+  "ي":"yaa"
+};
