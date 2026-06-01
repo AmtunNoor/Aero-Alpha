@@ -3,6 +3,14 @@
 let sprAirport;
 let sprRunway;
 let spawnWave = 0;
+let planeTargetX = 0;
+let planeTargetY = 0;
+
+let planeVelX = 0;
+let planeVelY = 0;
+
+let turbulence = 0;
+let turbulenceTimer = 0;
 //let skyImage;
 
 const config = {
@@ -138,7 +146,14 @@ console.log("airport sprite:", sprAirport);
 console.log("runway sprite:", sprRunway);
 console.log("sky:", skyImage);
     sceneRef = this;
-
+this.tweens.add({
+    targets: plane,
+    y: plane.y - 8,
+    duration: 1200,
+    yoyo: true,
+    repeat: -1,
+    ease: "Sine.easeInOut"
+});
     generateLanes();
 
     const airportData = getAirport();
@@ -172,10 +187,21 @@ sprRunway = this.add.image(0, config.height - 120, "runway")
     plane.setCollideWorldBounds(true);
 
     planeTargetX = plane.x;
+planeTargetY = plane.y;
+   this.input.on("pointermove", (p) => {
 
-    this.input.on("pointermove", (p) => {
-        planeTargetX = Phaser.Math.Clamp(p.x, config.width*0.1, config.width*0.9);
-    });
+    planeTargetX = Phaser.Math.Clamp(
+        p.x,
+        config.width * 0.1,
+        config.width * 0.9
+    );
+
+    planeTargetY = Phaser.Math.Clamp(
+        p.y,
+        config.height * 0.2,
+        config.height * 0.85
+    );
+});
 
     this.input.keyboard.on("keydown-SPACE", activateBoost);
 
@@ -390,11 +416,36 @@ function safeSprite(sprite, fn) {
     }
 }
 /* ================= PLANE ================= */
-
 function updatePlane() {
-    plane.x += (planeTargetX - plane.x) * 0.15;
-}
 
+    // 🎯 smooth follow (inertia)
+    let dx = planeTargetX - plane.x;
+    let dy = planeTargetY - plane.y;
+
+    planeVelX += dx * 0.08;
+    planeVelY += dy * 0.06;
+
+    // 🌬 turbulence (controlled, not jitter)
+    turbulenceTimer--;
+
+    if (turbulenceTimer <= 0) {
+        turbulence = Phaser.Math.Between(-2, 2);
+        turbulenceTimer = Phaser.Math.Between(40, 120);
+    }
+
+    planeVelX += turbulence;
+
+    // 🧊 damping (stability)
+    planeVelX *= 0.85;
+    planeVelY *= 0.85;
+
+    // ✈ apply movement
+    plane.x += planeVelX;
+    plane.y += planeVelY;
+
+    // 🧭 tilt effect (visual feel)
+    plane.angle = Phaser.Math.Clamp(planeVelX * 0.3, -15, 15);
+}
 /* ================= ENVIRONMENT ================= */
 function updateEnvironment() {
 if (!sprAirport) {
