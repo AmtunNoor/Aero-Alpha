@@ -2,7 +2,7 @@
 //let plane;
 let sprAirport;
 let sprRunway;
-let skyImage;
+//let skyImage;
 
 const config = {
     type: Phaser.AUTO,
