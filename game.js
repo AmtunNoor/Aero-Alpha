@@ -128,10 +128,9 @@ function buildSky() {
 }
 
 /* ================= INPUT (TV SAFE) ================= */
-
 function setupInput() {
 
-    this.input.keyboard.on("keydown", (e) => {
+    sceneRef.input.keyboard.on("keydown", (e) => {
 
         if (e.code === "ArrowLeft") INPUT.left = true;
         if (e.code === "ArrowRight") INPUT.right = true;
@@ -139,7 +138,7 @@ function setupInput() {
         if (e.code === "ArrowDown") INPUT.down = true;
     });
 
-    this.input.keyboard.on("keyup", (e) => {
+    sceneRef.input.keyboard.on("keyup", (e) => {
 
         if (e.code === "ArrowLeft") INPUT.left = false;
         if (e.code === "ArrowRight") INPUT.right = false;
@@ -147,7 +146,6 @@ function setupInput() {
         if (e.code === "ArrowDown") INPUT.down = false;
     });
 }
-
 /* ================= PLANE ================= */
 
 function spawnPlane() {
