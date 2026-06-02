@@ -11,13 +11,11 @@ const config = {
 
 new Phaser.Game(config);
 
-/* ================= GLOBAL STATE ================= */
+/* ================= STATE ================= */
 
 let sceneRef;
 
-let GAME_MODE = null; // MENU | RUNNER | FREEFLIGHT
-
-let worldBuilt = false;
+let GAME_MODE = null;
 
 let plane = null;
 let planeTargetX = 0;
@@ -26,15 +24,16 @@ let planeTargetY = 0;
 let velX = 0;
 let velY = 0;
 
+/* GAME CORE */
 let letters = [];
 let targetLetter = null;
 let targetText = null;
 
-let skyImage;
+let wrongStreak = 0;
 
-let cloud1, cloud2;
-
-let sprAirport, sprRunway;
+/* SPEED SYSTEM (GRADUAL) */
+let baseSpeed = 1.2;
+let speedMultiplier = 1;
 
 /* ================= LETTERS ================= */
 
@@ -58,25 +57,19 @@ function preload() {
     this.load.image("background_menu","assets/images/background_menu.png");
 
     this.load.image("sky_day","assets/images/sky_day.webp");
-    this.load.image("sky_sunset","assets/images/sky_sunset.webp");
-    this.load.image("sky_night","assets/images/sky_night.webp");
-
     this.load.image("cloud1","assets/images/clouds_1.png");
     this.load.image("cloud2","assets/images/clouds_2.png");
 
-    this.load.image("airport","assets/images/airport.png");
-    this.load.image("runway","assets/images/runway.png");
-
     this.load.image("plane_trainer","assets/images/plane_trainer.png");
 
-    this.load.audio("engine","assets/sound/engine.mp3");
-    this.load.audio("wind","assets/sound/wind.mp3");
+    Object.values(AUDIO_MAP).forEach(k => {
+        this.load.audio(k, `assets/sound/letters/${k}.mp3`);
+    });
 }
 
 /* ================= CREATE ================= */
 
 function create() {
-
     sceneRef = this;
     showMenu();
 }
@@ -93,65 +86,31 @@ function showMenu() {
         "background_menu"
     ).setDisplaySize(config.width, config.height);
 
-    const overlay = sceneRef.add.rectangle(
+    const btn = sceneRef.add.text(
         config.width/2,
         config.height/2,
-        config.width,
-        config.height,
-        0x000000,
-        0.25
-    );
-
-    const title = sceneRef.add.text(
-        config.width/2,
-        config.height*0.2,
-        "AERO ALPHA",
+        "START GAME",
         {
-            fontSize:"64px",
+            fontSize:"60px",
             color:"#FFD93D",
-            stroke:"#000",
-            strokeThickness:8
-        }
-    ).setOrigin(0.5);
-
-    const runnerBtn = sceneRef.add.text(
-        config.width/2,
-        config.height*0.45,
-        "✈ SKY RUNNER",
-        {
-            fontSize:"48px",
-            backgroundColor:"#000",
-            color:"#FFD93D",
-            padding:{left:20,right:20,top:10,bottom:10}
+            backgroundColor:"#000"
         }
     ).setOrigin(0.5).setInteractive();
 
-    const freeBtn = sceneRef.add.text(
-        config.width/2,
-        config.height*0.6,
-        "🛩 FREE FLIGHT",
-        {
-            fontSize:"48px",
-            backgroundColor:"#000",
-            color:"#FFD93D",
-            padding:{left:20,right:20,top:10,bottom:10}
-        }
-    ).setOrigin(0.5).setInteractive();
-
-    runnerBtn.on("pointerdown", () => startGame("RUNNER", bg, overlay, title, runnerBtn, freeBtn));
-    freeBtn.on("pointerdown", () => startGame("FREEFLIGHT", bg, overlay, title, runnerBtn, freeBtn));
+    btn.on("pointerdown", () => {
+        bg.destroy();
+        btn.destroy();
+        startGame();
+    });
 }
 
-/* ================= START GAME ================= */
+/* ================= START ================= */
 
-function startGame(mode, ...ui) {
+function startGame() {
 
-    GAME_MODE = mode;
+    GAME_MODE = "RUNNER";
 
-    ui.forEach(o => o.destroy());
-
-    if (!worldBuilt) buildWorld();
-
+    buildWorld();
     resetGame();
 
     spawnLetters();
@@ -162,14 +121,11 @@ function startGame(mode, ...ui) {
 
 function buildWorld() {
 
-    worldBuilt = true;
+    sceneRef.add.image(0,0,"sky_day")
+        .setOrigin(0)
+        .setDisplaySize(config.width, config.height);
 
-    skyImage = sceneRef.add.image(
-        0,0,"sky_day"
-    ).setOrigin(0).setDisplaySize(config.width, config.height);
-
-    cloud1 = sceneRef.add.tileSprite(0, 80, config.width, 80, "cloud1").setOrigin(0).setAlpha(0.15);
-    cloud2 = sceneRef.add.tileSprite(0, 160, config.width, 80, "cloud2").setOrigin(0).setAlpha(0.1);
+    sceneRef.physics.world.timeScale = 1;
 
     plane = sceneRef.physics.add.image(
         config.width/2,
@@ -183,113 +139,77 @@ function buildWorld() {
     planeTargetX = plane.x;
     planeTargetY = plane.y;
 
-    targetText = sceneRef.add.text(
-        20,20,"",
-        {
-            fontSize:"54px",
-            color:"#FFD93D",
-            stroke:"#000",
-            strokeThickness:8
-        }
-    );
+    targetText = sceneRef.add.text(20,20,"",{
+        fontSize:"54px",
+        color:"#FFD93D",
+        stroke:"#000",
+        strokeThickness:8
+    });
 
     sceneRef.input.on("pointermove", (p) => {
         planeTargetX = p.x;
-        planeTargetY = config.height * 0.7;
+        planeTargetY = config.height*0.7;
     });
 }
 
 /* ================= RESET ================= */
 
 function resetGame() {
-
     letters.forEach(l => l.destroy());
     letters = [];
-
-    velX = 0;
-    velY = 0;
+    wrongStreak = 0;
 }
 
 /* ================= UPDATE ================= */
 
 function update() {
 
-    if (GAME_MODE === "MENU") return;
-
-    if (!plane) return;
+    if (GAME_MODE !== "RUNNER") return;
 
     updatePlane();
+    updateLetters();
 
-    if (GAME_MODE === "RUNNER") updateRunner();
-    else updateFreeFlight();
+    applyDifficulty();
 
-    if (cloud1) cloud1.tilePositionX += 0.3;
-    if (cloud2) cloud2.tilePositionX += 0.5;
+    if (cloud1) cloud1.tilePositionX += 0.2;
+    if (cloud2) cloud2.tilePositionX += 0.3;
 }
 
-/* ================= PLANE ================= */
+/* ================= PLANE (SMOOTH) ================= */
 
 function updatePlane() {
-
-    if (!plane) return;
 
     let dx = planeTargetX - plane.x;
     let dy = planeTargetY - plane.y;
 
-    velX += dx * 0.05;
-    velY += dy * 0.05;
+    velX += dx * 0.04;
+    velY += dy * 0.04;
 
-    velX *= 0.85;
-    velY *= 0.85;
+    velX *= 0.86;
+    velY *= 0.86;
 
     plane.x += velX;
     plane.y += velY;
 
-    plane.angle = Phaser.Math.Clamp(velX * 0.2, -15, 15);
+    plane.angle = Phaser.Math.Clamp(velX * 0.2, -10, 10);
 }
 
-/* ================= RUNNER ================= */
-
-function updateRunner() {
-
-    letters.forEach(l => {
-
-        l.y += 3;
-
-        if (l.y > config.height + 100) {
-            l.y = -100;
-            l.x = Math.random() * config.width;
-        }
-    });
-}
-
-/* ================= FREE FLIGHT ================= */
-
-function updateFreeFlight() {
-
-    letters.forEach(l => {
-
-        l.x += Math.sin(Date.now()*0.001 + l.wave)*0.5;
-        l.y += 1.5;
-    });
-}
-
-/* ================= LETTERS ================= */
+/* ================= LETTER SYSTEM ================= */
 
 function spawnLetters() {
 
-    letters = [];
+    // KEEP CONTROLLED COUNT ONLY
+    while (letters.length < 7) {
 
-    for (let i=0;i<7;i++) {
-
-        let letter = LETTERS[Math.floor(Math.random()*LETTERS.length)];
+        let letter =
+            LETTERS[Math.floor(Math.random()*LETTERS.length)];
 
         let t = sceneRef.add.text(
             Math.random()*config.width,
-            Math.random()*config.height,
+            -Math.random()*300,
             letter,
             {
-                fontSize:"80px",
+                fontSize:"72px",
                 color:"#FFD93D",
                 stroke:"#000",
                 strokeThickness:8
@@ -299,7 +219,7 @@ function spawnLetters() {
         sceneRef.physics.add.existing(t);
         t.body.setAllowGravity(false);
 
-        t.wave = Math.random()*1000;
+        t.speed = baseSpeed;
 
         letters.push(t);
     }
@@ -307,9 +227,26 @@ function spawnLetters() {
     sceneRef.physics.add.overlap(plane, letters, collect);
 }
 
+/* ================= LETTER UPDATE ================= */
+
+function updateLetters() {
+
+    letters.forEach(l => {
+
+        l.y += baseSpeed * speedMultiplier;
+
+        if (l.y > config.height + 80) {
+            l.y = -100;
+            l.x = Math.random()*config.width;
+        }
+    });
+}
+
 /* ================= TARGET ================= */
 
 function pickTarget() {
+
+    if (letters.length === 0) return;
 
     targetLetter =
         letters[Math.floor(Math.random()*letters.length)].text;
@@ -327,15 +264,51 @@ function collect(_, letter) {
 
     if (letter.text === targetLetter) {
 
+        spawnBurst(letter.x, letter.y);
+
         letter.destroy();
         letters = letters.filter(l => l !== letter);
+
+        wrongStreak = 0;
 
         spawnLetters();
         pickTarget();
 
     } else {
 
-        sceneRef.cameras.main.shake(80,0.01);
+        wrongStreak++;
+
+        // ONLY VISUAL SHAKE AFTER 6 WRONGS
+        if (wrongStreak >= 6) {
+            sceneRef.cameras.main.shake(80,0.01);
+            wrongStreak = 0;
+        }
+    }
+}
+
+/* ================= DIFFICULTY CURVE ================= */
+
+function applyDifficulty() {
+
+    speedMultiplier = 1 + (letters.length * 0.05);
+}
+
+/* ================= BURST ================= */
+
+function spawnBurst(x,y) {
+
+    for (let i=0;i<14;i++) {
+
+        let p = sceneRef.add.circle(x,y,10,0xFFD93D);
+
+        sceneRef.tweens.add({
+            targets:p,
+            x:x+Phaser.Math.Between(-120,120),
+            y:y+Phaser.Math.Between(-120,120),
+            alpha:0,
+            duration:600,
+            onComplete:()=>p.destroy()
+        });
     }
 }
 
@@ -344,10 +317,9 @@ function collect(_, letter) {
 function playAudioSafe(letter) {
 
     const key = AUDIO_MAP[letter];
-
     if (!key) return;
 
     if (!sceneRef.cache.audio.exists(key)) return;
 
-    sceneRef.sound.play(key, { volume: 1 });
+    sceneRef.sound.play(key,{ volume:1 });
 }
