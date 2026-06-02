@@ -11,7 +11,7 @@ const config = {
 
 new Phaser.Game(config);
 
-/* ================= STATE ================= */
+/* ================= STATE ================== */
 
 let sceneRef;
 
