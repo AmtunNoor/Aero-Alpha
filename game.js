@@ -11,36 +11,47 @@ const config = {
 
 new Phaser.Game(config);
 
-/* ================= STATE ================= */
+/* ================= CORE STATE ================= */
 
 let sceneRef;
 let GAME_MODE = "MENU";
 
-let plane;
-let planeTargetX = 0;
-let planeTargetY = 0;
+/* ================= PLAYER ================= */
 
+let plane;
 let velX = 0, velY = 0;
 
+let targetX = 0;
+let targetY = 0;
+
+/* ================= GAME OBJECTS ================= */
+
 let letters = [];
-let targetLetter = null;
+let targetLetter;
 let targetText;
 
-let worldReady = false;
+/* ================= SKY SYSTEM ================= */
+
+let sky;
+let cloudLayer1;
+let cloudLayer2;
+
+let skyTime = 0; // 0 → day, 1 → night
+
+/* ================= INPUT SYSTEM (TV READY) ================= */
+
+let INPUT = {
+    left:false,
+    right:false,
+    up:false,
+    down:false,
+    confirm:false
+};
 
 /* ================= AUDIO ================= */
 
 let AUDIO_QUEUE = [];
-let AUDIO_PLAYING = false;
-
-/* ================= STATE CONTROLLER ================= */
-
-let STATE = {
-    targetCooldown: 2000,
-    lastTargetTime: 0,
-    mode: "MENU",
-    letterSpeed: 2.2
-};
+let AUDIO_BUSY = false;
 
 /* ================= LETTERS ================= */
 
@@ -60,116 +71,138 @@ const AUDIO_MAP = {
 /* ================= PRELOAD ================= */
 
 function preload() {
-    this.load.image("background_menu","assets/images/background_menu.png");
-    this.load.image("sky_day","assets/images/sky_day.webp");
-    this.load.image("cloud1","assets/images/clouds_1.png");
-    this.load.image("cloud2","assets/images/clouds_2.png");
-    this.load.image("plane_trainer","assets/images/plane_trainer.png");
-
-    Object.values(AUDIO_MAP).forEach(k => {
-        this.load.audio(k, `assets/sound/letters/${k}.mp3`);
-    });
+    this.load.image("plane", "assets/images/plane_trainer.png");
+    this.load.image("cloud1", "assets/images/clouds_1.png");
+    this.load.image("cloud2", "assets/images/clouds_2.png");
 }
 
 /* ================= CREATE ================= */
 
 function create() {
     sceneRef = this;
-    showMenu();
+
+    buildSky();
+    spawnPlane();
+    spawnLetters();
+    pickTarget();
+
+    setupInput();
 }
 
-/* ================= MENU ================= */
+/* ================= SKY PREMIUM SYSTEM ================= */
 
-function showMenu() {
-    GAME_MODE = "MENU";
-
-    sceneRef.children.removeAll();
-
-    sceneRef.add.image(0,0,"background_menu")
-        .setOrigin(0)
-        .setDisplaySize(config.width, config.height);
-
-    const btn = sceneRef.add.text(
+function buildSky() {
+    sky = sceneRef.add.rectangle(
         config.width/2,
         config.height/2,
-        "START SKY RUNNER",
-        { fontSize:"50px", color:"#FFD93D", backgroundColor:"#000" }
-    ).setOrigin(0.5).setInteractive();
+        config.width,
+        config.height,
+        0x87CEEB
+    );
 
-    btn.on("pointerdown", startGame);
+    cloudLayer1 = sceneRef.add.tileSprite(
+        0, 120,
+        config.width,
+        200,
+        "cloud1"
+    ).setOrigin(0).setAlpha(0.35);
+
+    cloudLayer2 = sceneRef.add.tileSprite(
+        0, 260,
+        config.width,
+        200,
+        "cloud2"
+    ).setOrigin(0).setAlpha(0.25);
+}
+
+/* ================= INPUT SYSTEM ================= */
+
+function setupInput() {
+
+    sceneRef.input.keyboard.on("keydown", (e) => {
+
+        switch(e.code) {
+            case "ArrowLeft":
+            case "KeyA": INPUT.left = true; break;
+
+            case "ArrowRight":
+            case "KeyD": INPUT.right = true; break;
+
+            case "ArrowUp":
+            case "KeyW": INPUT.up = true; break;
+
+            case "ArrowDown":
+            case "KeyS": INPUT.down = true; break;
+
+            case "Enter":
+                INPUT.confirm = true;
+                if (GAME_MODE === "MENU") startGame();
+                break;
+        }
+    });
+
+    sceneRef.input.keyboard.on("keyup", (e) => {
+
+        switch(e.code) {
+            case "ArrowLeft":
+            case "KeyA": INPUT.left = false; break;
+
+            case "ArrowRight":
+            case "KeyD": INPUT.right = false; break;
+
+            case "ArrowUp":
+            case "KeyW": INPUT.up = false; break;
+
+            case "ArrowDown":
+            case "KeyS": INPUT.down = false; break;
+
+            case "Enter":
+                INPUT.confirm = false;
+                break;
+        }
+    });
 }
 
 /* ================= START GAME ================= */
 
 function startGame() {
     GAME_MODE = "RUNNING";
-
-    sceneRef.children.removeAll();
-
-    buildWorld();
-    spawnPlane();
-    spawnLetters();
-    pickTarget(true);
-}
-
-/* ================= WORLD ================= */
-
-function buildWorld() {
-    worldReady = true;
-
-    sceneRef.add.image(0,0,"sky_day")
-        .setOrigin(0)
-        .setDisplaySize(config.width, config.height);
-
-    sceneRef.add.tileSprite(0,100,config.width,150,"cloud1")
-        .setOrigin(0)
-        .setAlpha(0.2);
-
-    sceneRef.add.tileSprite(0,250,config.width,150,"cloud2")
-        .setOrigin(0)
-        .setAlpha(0.15);
-
-    targetText = sceneRef.add.text(20,20,"",{
-        fontSize:"60px",
-        color:"#FFD93D"
-    });
 }
 
 /* ================= PLANE ================= */
 
 function spawnPlane() {
+
     plane = sceneRef.physics.add.image(
         config.width/2,
         config.height*0.7,
-        "plane_trainer"
+        "plane"
     );
 
     plane.setScale(0.3);
     plane.setCollideWorldBounds(true);
 
-    planeTargetX = plane.x;
-    planeTargetY = plane.y;
-
-    sceneRef.input.on("pointermove", (p) => {
-        planeTargetX = p.x;
-        planeTargetY = config.height * 0.6;
-    });
-
-    sceneRef.physics.add.overlap(plane, letters, collect);
+    targetX = plane.x;
+    targetY = plane.y;
 }
 
-/* ================= LETTER SYSTEM ================= */
+/* ================= LETTERS ================= */
 
 function spawnLetters() {
+
     letters.forEach(l => l.destroy());
     letters = [];
 
     for (let i = 0; i < 7; i++) {
-        const txt = sceneRef.add.text(
-            Phaser.Math.Between(100, config.width - 100),
-            Phaser.Math.Between(100, config.height - 100),
+
+        let txt = sceneRef.add.text(
+            Phaser.Math.Between(100, config.width-100),
+            Phaser.Math.Between(100, config.height-150),
             LETTERS[Math.floor(Math.random() * LETTERS.length)],
-            { fontSize:"80px", color:"#FFD93D" }
+            {
+                fontSize:"70px",
+                color:"#fff"
+            }
         );
 
         sceneRef.physics.add.existing(txt);
@@ -181,22 +214,23 @@ function spawnLetters() {
     sceneRef.physics.add.overlap(plane, letters, collect);
 }
 
-/* ================= TARGET ================= */
+/* ================= TARGET SYSTEM ================= */
 
-function pickTarget(force = false) {
-    const now = Date.now();
+function pickTarget() {
 
-    if (!force && now - STATE.lastTargetTime < STATE.targetCooldown) return;
     if (letters.length === 0) return;
 
-    const valid = letters.filter(l => l && l.active);
-    if (valid.length === 0) return;
+    targetLetter =
+        letters[Math.floor(Math.random() * letters.length)].text;
 
-    targetLetter = valid[Math.floor(Math.random() * valid.length)].text;
+    if (!targetText) {
+        targetText = sceneRef.add.text(20, 20, "", {
+            fontSize:"50px",
+            color:"#fff"
+        });
+    }
 
-    targetText.setText("الحرف: " + targetLetter);
-
-    STATE.lastTargetTime = now;
+    targetText.setText("TARGET: " + targetLetter);
 
     playAudio(targetLetter);
 }
@@ -204,51 +238,93 @@ function pickTarget(force = false) {
 /* ================= UPDATE LOOP ================= */
 
 function update() {
-    if (GAME_MODE !== "RUNNING") return;
-    if (!plane) return;
 
+    updateSky();
+
+    if (GAME_MODE !== "RUNNING") return;
+
+    updateInput();
     updatePlane();
 
-    const speed = STATE.letterSpeed;
+    updateLetters();
 
-    letters.forEach(l => {
-        if (!l) return;
-
-        l.y += speed;
-
-        if (l.y > config.height + 50) {
-            l.y = -50;
-            l.x = Phaser.Math.Between(100, config.width - 100);
-        }
-    });
-
-    pickTarget(false);
 }
 
-/* ================= PLANE CONTROL ================= */
+/* ================= SKY ANIMATION ================= */
+
+function updateSky() {
+
+    skyTime += 0.0003;
+
+    let cycle = (Math.sin(skyTime) + 1) / 2;
+
+    // day → night blend
+    let color = Phaser.Display.Color.Interpolate.ColorWithColor(
+        Phaser.Display.Color.ValueToColor(0x87CEEB),
+        Phaser.Display.Color.ValueToColor(0x0B0F2A),
+        1,
+        cycle
+    );
+
+    sky.fillColor = Phaser.Display.Color.GetColor(color.r, color.g, color.b);
+
+    cloudLayer1.tilePositionX += 0.4;
+    cloudLayer2.tilePositionX += 0.2;
+}
+
+/* ================= INPUT → MOVEMENT ================= */
+
+function updateInput() {
+
+    let speed = 6;
+
+    if (INPUT.left) targetX -= speed;
+    if (INPUT.right) targetX += speed;
+    if (INPUT.up) targetY -= speed;
+    if (INPUT.down) targetY += speed;
+}
+
+/* ================= PLANE PHYSICS ================= */
 
 function updatePlane() {
-    let dx = planeTargetX - plane.x;
-    let dy = planeTargetY - plane.y;
 
-    velX += dx * 0.04;
-    velY += dy * 0.04;
+    let dx = targetX - plane.x;
+    let dy = targetY - plane.y;
 
-    velX *= 0.86;
-    velY *= 0.86;
+    velX += dx * 0.05;
+    velY += dy * 0.05;
+
+    velX *= 0.85;
+    velY *= 0.85;
 
     plane.x += velX;
     plane.y += velY;
 
-    plane.angle = Phaser.Math.Clamp(velX * 0.2, -12, 12);
+    plane.angle = Phaser.Math.Clamp(velX * 0.2, -15, 15);
+}
+
+/* ================= LETTER MOVEMENT ================= */
+
+function updateLetters() {
+
+    letters.forEach(l => {
+        l.y += 2.2;
+
+        if (l.y > config.height + 50) {
+            l.y = -50;
+            l.x = Phaser.Math.Between(100, config.width-100);
+        }
+    });
 }
 
 /* ================= COLLECT ================= */
 
 function collect(_, letter) {
+
     if (!letter || !letter.text) return;
 
     if (letter.text === targetLetter) {
+
         spawnBurst(letter.x, letter.y);
 
         letter.destroy();
@@ -256,48 +332,61 @@ function collect(_, letter) {
         letters = letters.filter(l => l !== letter);
 
         spawnLetters();
-        pickTarget(true);
+        pickTarget();
     }
 }
 
-/* ================= AUDIO QUEUE ================= */
+/* ================= AUDIO ================= */
 
 function playAudio(letter) {
-    const key = AUDIO_MAP[letter];
+
+    let keyMap = {
+        "ا":"alif","ب":"ba","ت":"ta","ث":"thaa","ج":"jeem","ح":"haa",
+        "خ":"kha","د":"daal","ذ":"zaal","ر":"raa","ز":"zaa","س":"seen",
+        "ش":"sheen","ص":"saad","ض":"dad","ط":"toa","ظ":"zoa","ع":"ain",
+        "غ":"ghain","ف":"fa","ق":"qaaf","ك":"kaf","ل":"laam","م":"meem",
+        "ن":"noon","ه":"ha","و":"waw","ي":"yaa"
+    };
+
+    const key = keyMap[letter];
     if (!key) return;
 
     AUDIO_QUEUE.push(key);
-    processAudioQueue();
+    processAudio();
 }
 
-function processAudioQueue() {
-    if (AUDIO_PLAYING || AUDIO_QUEUE.length === 0) return;
+function processAudio() {
 
-    AUDIO_PLAYING = true;
+    if (AUDIO_BUSY || AUDIO_QUEUE.length === 0) return;
+
+    AUDIO_BUSY = true;
 
     const key = AUDIO_QUEUE.shift();
+
     const sound = sceneRef.sound.add(key);
 
     sound.once("complete", () => {
-        AUDIO_PLAYING = false;
-        processAudioQueue();
+        AUDIO_BUSY = false;
+        processAudio();
     });
 
     sound.play();
 }
 
-/* ================= BURST FX ================= */
+/* ================= FX ================= */
 
 function spawnBurst(x, y) {
-    for (let i = 0; i < 18; i++) {
-        const p = sceneRef.add.circle(x, y, 10, 0xFFD93D);
+
+    for (let i = 0; i < 16; i++) {
+
+        const p = sceneRef.add.circle(x, y, 8, 0xffffff);
 
         sceneRef.tweens.add({
             targets: p,
-            x: x + Phaser.Math.Between(-120, 120),
-            y: y + Phaser.Math.Between(-120, 120),
+            x: x + Phaser.Math.Between(-100, 100),
+            y: y + Phaser.Math.Between(-100, 100),
             alpha: 0,
-            duration: 500,
+            duration: 450,
             onComplete: () => p.destroy()
         });
     }
