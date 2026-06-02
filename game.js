@@ -11,10 +11,45 @@ const config = {
 
 new Phaser.Game(config);
 
+/* ================= MODE SELECT SCREEN ================= */
+function showModeSelect() {
+
+    sceneRef.children.removeAll();
+
+    sceneRef.add.text(640, 200, "SELECT MODE", {
+        fontSize: "60px",
+        color: "#ffffff"
+    }).setOrigin(0.5);
+
+    const runnerBtn = sceneRef.add.text(640, 350, "✈ RUNNER MODE", {
+        fontSize: "40px",
+        color: "#FFD93D",
+        backgroundColor: "#000"
+    }).setOrigin(0.5).setInteractive();
+
+    const freeBtn = sceneRef.add.text(640, 450, "🕊 FREE FLIGHT MODE", {
+        fontSize: "40px",
+        color: "#00E5FF",
+        backgroundColor: "#000"
+    }).setOrigin(0.5).setInteractive();
+
+    runnerBtn.on("pointerdown", () => {
+        GAME_TYPE = "RUNNER";
+        startGame();
+    });
+
+    freeBtn.on("pointerdown", () => {
+        GAME_TYPE = "FREEFLIGHT";
+        startGame();
+    });
+}
+
 /* ================= CORE ================= */
 
 let sceneRef;
-let GAME_MODE = "RUNNING";
+//let GAME_MODE = "RUNNING";
+let GAME_MODE = "MENU";
+let GAME_TYPE = null; // "RUNNER" or "FREEFLIGHT"
 
 /* ================= PLAYER (VERTICAL RUNNER STYLE) ================= */
 
@@ -39,6 +74,28 @@ let sky_night;
 let skyState = 0; 
 // 0 = day, 1 = sunset, 2 = night
 let skyTimer = 0;
+
+/* ================= startGame ================= */
+function startGame() {
+
+    GAME_MODE = "RUNNING";
+
+    sceneRef.children.removeAll();
+
+    buildSky();
+    setupInput();
+    spawnPlane();
+
+    spawnLetters();
+    pickTarget();
+
+    if (GAME_TYPE === "FREEFLIGHT") {
+        // disable letters in free flight mode
+        letters.forEach(l => l.destroy());
+        letters = [];
+        targetText.setText("FREE FLIGHT MODE");
+    }
+}
 
 /* ================= INPUT ================= */
 
@@ -66,32 +123,26 @@ function preload() {
 /* ================= CREATE ================= */
 
 function create() {
-
     sceneRef = this;
 
-    buildSky();
-    setupInput();
-
-    spawnPlane();
-    spawnLetters();
-    pickTarget();
+    showModeSelect();
 }
-
 /* ================= SKY SYSTEM (ASSET BASED - SAFE) ================= */
+let skyDay, skySunset, skyNight;
 
 function buildSky() {
 
-    sky_day.set = sceneRef.add.image(0, 0, "sky_day")
+    skyDay = sceneRef.add.image(0, 0, "sky_day")
         .setOrigin(0)
         .setDisplaySize(1280, 720)
         .setAlpha(1);
 
-    sky_sunset = sceneRef.add.image(0, 0, "sky_sunset")
+    skySunset = sceneRef.add.image(0, 0, "sky_sunset")
         .setOrigin(0)
         .setDisplaySize(1280, 720)
         .setAlpha(0);
 
-    sky_night = sceneRef.add.image(0, 0, "sky_night")
+    skyNight = sceneRef.add.image(0, 0, "sky_night")
         .setOrigin(0)
         .setDisplaySize(1280, 720)
         .setAlpha(0);
@@ -104,7 +155,6 @@ function buildSky() {
         .setOrigin(0)
         .setAlpha(0.25);
 }
-
 /* ================= INPUT (TV SAFE) ================= */
 
 function setupInput() {
@@ -198,21 +248,20 @@ function update() {
 }
 
 /* ================= SKY TRANSITION (SAFE + VISUAL) ================= */
-
 function updateSky() {
 
     skyTimer += 0.0005;
 
     let cycle = Math.sin(skyTimer);
 
-    // DAY → SUNSET → NIGHT blending
-    if (cycle < 0.3) skyState = 0;
-    else if (cycle < 0.6) skyState = 1;
-    else skyState = 2;
+    let state = 0;
+    if (cycle < -0.2) state = 2;   // night
+    else if (cycle < 0.3) state = 0; // day
+    else state = 1; // sunset
 
-    sky_day.set.alpha = (skyState === 0) ? 1 : 0;
-    sky_sunset.alpha = (skyState === 1) ? 1 : 0;
-    sky_night.alpha = (skyState === 2) ? 1 : 0;
+    skyDay.alpha = (state === 0) ? 1 : 0;
+    skySunset.alpha = (state === 1) ? 1 : 0;
+    skyNight.alpha = (state === 2) ? 1 : 0;
 
     sceneRef.cloud1.tilePositionX += 0.3;
     sceneRef.cloud2.tilePositionX += 0.15;
