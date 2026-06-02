@@ -127,7 +127,8 @@ function create() {
         planeTargetY = config.height * 0.7;
     });
 
-    startGame();
+    //startGame();
+    showMenu();
 }
 
 /* ================= MODE SWITCH ================= */
@@ -151,62 +152,91 @@ function startGame() {
 }
 
 /* ================= TARGET SYSTEM ================= */
-
 function nextTarget() {
 
-    targetLetter = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+    // Get currently active letters
+    const activeLetters = letters
+        .filter(l => l && l.active !== false)
+        .map(l => l.text);
 
-    if (!targetText) {
-        targetText = sceneRef.add.text(config.width/2, 60, "", {
-            fontSize: "72px",
-            color: "#FFD93D",
-            stroke: "#000",
-            strokeThickness: 10
-        }).setOrigin(0.5);
+    // Safety rebuild
+    if (activeLetters.length === 0) {
+
+        spawnLetters();
+
+        return;
     }
 
-    targetText.setText("الحرف: " + targetLetter);
+    let newTarget =
+        activeLetters[
+            Phaser.Math.Between(
+                0,
+                activeLetters.length - 1
+            )
+        ];
 
-    ensureTargetExists();
+    targetLetter = newTarget;
+
+    if (targetText) {
+        targetText.setText("الحرف: " + targetLetter);
+    }
+
     playAudio(targetLetter);
 }
-
 /* ================= LETTER SPAWN ================= */
-
 function spawnLetters() {
 
-    letters.forEach(l => l.destroy());
+    letters.forEach(l => {
+
+        if (l) l.destroy();
+    });
+
     letters = [];
 
-    let pool = generateLetterPool(targetLetter);
+    const pool =
+        generateLetterPool(
+            targetLetter || LETTERS[0]
+        );
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < pool.length; i++) {
 
         let txt = sceneRef.add.text(
-            Math.random() * config.width,
-            -i * 140,
-            pool[Math.floor(Math.random() * pool.length)],
+
+            Phaser.Math.Between(
+                config.width * 0.15,
+                config.width * 0.85
+            ),
+
+            -i * 180,
+
+            pool[i],
+
             {
-                fontSize: "86px",
+                fontSize: "96px",
                 color: "#FFD93D",
                 stroke: "#000",
-                strokeThickness: 10
+                strokeThickness: 12
             }
         );
 
         sceneRef.physics.add.existing(txt);
+
         txt.body.setAllowGravity(false);
 
-        txt.state = "active";
         txt.baseX = txt.x;
-        txt.wave = Math.random() * 1000;
+
+        txt.wave =
+            Phaser.Math.Between(0,1000);
 
         letters.push(txt);
     }
 
-    sceneRef.physics.add.overlap(plane, letters, collect);
+    sceneRef.physics.add.overlap(
+        plane,
+        letters,
+        collect
+    );
 }
-
 /* ================= UPDATE ================= */
 
 function update() {
@@ -265,24 +295,91 @@ function updateFreeFlight() {
 }
 
 /* ================= PREMIUM PLANE ================= */
-
 function updatePlane() {
 
-    let dx = planeTargetX - plane.x;
-    let dy = planeTargetY - plane.y;
+    let dx =
+        planeTargetX - plane.x;
 
-    velX += dx * 0.08;
-    velY += dy * 0.06;
+    let dy =
+        planeTargetY - plane.y;
 
-    velX *= 0.82;
-    velY *= 0.82;
+    velX += dx * 0.05;
+    velY += dy * 0.05;
+
+    velX *= 0.88;
+    velY *= 0.88;
 
     plane.x += velX;
     plane.y += velY;
 
-    plane.angle = Phaser.Math.Clamp(velX * 0.3, -18, 18);
+    plane.angle =
+        Phaser.Math.Clamp(
+            velX * 0.25,
+            -12,
+            12
+        );
 }
+/* ================= SHOW MENU ================= */
+function showMenu() {
 
+    sceneRef.add.image(
+        config.width / 2,
+        config.height / 2,
+        "background_menu"
+    )
+    .setDisplaySize(
+        config.width,
+        config.height
+    );
+
+    let runnerBtn =
+        sceneRef.add.text(
+            config.width/2,
+            config.height*0.45,
+            "✈ Sky Runner",
+            {
+                fontSize:"54px",
+                color:"#FFD93D",
+                backgroundColor:"#000"
+            }
+        )
+        .setOrigin(0.5)
+        .setInteractive();
+
+    let freeBtn =
+        sceneRef.add.text(
+            config.width/2,
+            config.height*0.60,
+            "🛩 Free Flight",
+            {
+                fontSize:"54px",
+                color:"#FFD93D",
+                backgroundColor:"#000"
+            }
+        )
+        .setOrigin(0.5)
+        .setInteractive();
+
+    runnerBtn.on("pointerdown", () => {
+
+        GAME_MODE = "RUNNER";
+
+        runnerBtn.destroy();
+        freeBtn.destroy();
+
+        startGame();
+    });
+
+    freeBtn.on("pointerdown", () => {
+
+        GAME_MODE = "FREEFLIGHT";
+
+        runnerBtn.destroy();
+        freeBtn.destroy();
+
+        startGame();
+    });
+}
 /* ================= TARGET SAFETY ================= */
 
 function ensureTargetExists() {
@@ -293,50 +390,89 @@ function ensureTargetExists() {
 }
 
 /* ================= LETTER POOL ================= */
-
 function generateLetterPool(target) {
 
-    let pool = new Set();
-    pool.add(target);
+    let pool = [];
 
-    while (pool.size < 8) {
-        pool.add(LETTERS[Math.floor(Math.random() * LETTERS.length)]);
+    // Always include target twice
+    pool.push(target);
+    pool.push(target);
+
+    while (pool.length < 7) {
+
+        let randomLetter =
+            LETTERS[
+                Phaser.Math.Between(
+                    0,
+                    LETTERS.length - 1
+                )
+            ];
+
+        pool.push(randomLetter);
     }
 
-    return Array.from(pool);
+    Phaser.Utils.Array.Shuffle(pool);
+
+    return pool;
 }
-
 /* ================= COLLECT ================= */
-
 function collect(_, letter) {
 
-    if (letter.state !== "active") return;
+    if (!letter) return;
 
     if (letter.text === targetLetter) {
 
+        spawnParticles(
+            letter.x,
+            letter.y
+        );
+
+        letters =
+            letters.filter(
+                l => l !== letter
+            );
+
         letter.destroy();
-        spawnParticles(letter.x, letter.y);
+
+        // Refill pool
+        if (letters.length < 6) {
+
+            spawnLetters();
+        }
 
         nextTarget();
 
     } else {
-        sceneRef.cameras.main.shake(40, 0.006);
+
+        sceneRef.cameras.main.shake(
+            60,
+            0.004
+        );
     }
 }
-
 /* ================= AUDIO ================= */
-
 function playAudio(letter) {
 
-    let k = AUDIO_MAP[letter];
+    const key =
+        AUDIO_MAP[letter];
 
-    if (k) {
-        let s = sceneRef.sound.get(k);
-        if (s) s.stop();
-        sceneRef.sound.play(k, { volume: 1 });
+    if (!key) return;
+
+    const existing =
+        sceneRef.sound.get(key);
+
+    if (existing) {
+
+        existing.stop();
     }
-}
 
+    sceneRef.sound.play(
+        key,
+        {
+            volume: 1
+        }
+    );
+}
 /* ================= LANE SYSTEM ================= */
 
 function generateLanes() {
