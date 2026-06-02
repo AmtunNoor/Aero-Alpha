@@ -68,7 +68,7 @@ function preload() {
     this.load.image("airport","assets/images/airport.png");
     this.load.image("runway","assets/images/runway.png");
 
-    this.load.image("cloud1","assets/images/clouds_1.webp");
+    this.load.image("cloud1","assets/images/clouds_1.png");
     this.load.image("cloud2","assets/images/clouds_2.png");
 
     this.load.image("plane_trainer","assets/images/plane_trainer.png");
