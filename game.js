@@ -1,16 +1,3 @@
-/* ==========================================
-AERO ALPHA
-VERSION: v21.0
-BUILD: TV-FIRST STABLE CORE
-FEATURES:
-- Sky Runner + Free Flight
-- 28 Arabic letters
-- TV / Keyboard / Touch controls
-- Menu system
-- Stable target system (NO LOCK LOOP)
-- No coin mechanics (letters only)
-========================================== */
-
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
@@ -28,7 +15,7 @@ new Phaser.Game(config);
 
 let sceneRef;
 
-let GAME_MODE = "MENU"; // MENU | RUNNER | FREEFLIGHT
+let GAME_MODE = "MENU";
 
 let plane;
 let planeTargetX = 0;
@@ -40,12 +27,7 @@ let letters = [];
 let targetLetter;
 let targetText;
 
-let skyImage;
-let sprAirport, sprRunway;
-
-let cloud1, cloud2;
-
-let speed = 2.5;
+let worldReady = false;
 
 /* ================= LETTERS ================= */
 
@@ -69,23 +51,14 @@ function preload() {
     this.load.image("background_menu","assets/images/background_menu.png");
 
     this.load.image("sky_day","assets/images/sky_day.webp");
-    this.load.image("sky_sunset","assets/images/sky_sunset.webp");
-    this.load.image("sky_night","assets/images/sky_night.webp");
-
-    this.load.image("airport","assets/images/airport.png");
-    this.load.image("runway","assets/images/runway.png");
-
-    this.load.image("clouds_1","assets/images/clouds_1.png");
-    this.load.image("clouds_2","assets/images/clouds_2.png");
+    this.load.image("cloud1","assets/images/clouds_1.png");
+    this.load.image("cloud2","assets/images/clouds_2.png");
 
     this.load.image("plane_trainer","assets/images/plane_trainer.png");
 
     Object.values(AUDIO_MAP).forEach(k => {
         this.load.audio(k, `assets/sound/letters/${k}.mp3`);
     });
-
-    this.load.audio("engine","assets/sound/engine.mp3");
-    this.load.audio("wind","assets/sound/wind.mp3");
 }
 
 /* ================= CREATE ================= */
@@ -93,7 +66,6 @@ function preload() {
 function create() {
 
     sceneRef = this;
-
     showMenu();
 }
 
@@ -101,70 +73,58 @@ function create() {
 
 function showMenu() {
 
+    GAME_MODE = "MENU";
+
     sceneRef.add.image(0,0,"background_menu")
         .setOrigin(0)
         .setDisplaySize(config.width, config.height);
 
-    let title = sceneRef.add.text(config.width/2, 120,
-        "AERO ALPHA",
-        { fontSize:"64px", color:"#FFD93D" }
-    ).setOrigin(0.5);
-
-    let runnerBtn = sceneRef.add.text(config.width/2, 300,
-        "✈ SKY RUNNER",
-        { fontSize:"48px", color:"#fff", backgroundColor:"#000" }
+    let btn = sceneRef.add.text(config.width/2, config.height/2,
+        "START SKY RUNNER",
+        { fontSize:"50px", color:"#FFD93D", backgroundColor:"#000" }
     ).setOrigin(0.5).setInteractive();
 
-    let freeBtn = sceneRef.add.text(config.width/2, 420,
-        "🛩 FREE FLIGHT",
-        { fontSize:"48px", color:"#fff", backgroundColor:"#000" }
-    ).setOrigin(0.5).setInteractive();
-
-    runnerBtn.on("pointerdown", () => startGame("RUNNER"));
-    freeBtn.on("pointerdown", () => startGame("FREEFLIGHT"));
+    btn.on("pointerdown", () => {
+        startGame();
+    });
 }
 
 /* ================= START GAME ================= */
 
-function startGame(mode) {
+function startGame() {
 
-    GAME_MODE = mode;
+    GAME_MODE = "RUNNING";
 
     sceneRef.children.removeAll();
 
-    initWorld();
-
+    buildWorld();
     spawnPlane();
-
     spawnLetters();
-
-    setTarget();
+    pickTarget();
 }
 
 /* ================= WORLD ================= */
 
-function initWorld() {
+function buildWorld() {
 
-    skyImage = sceneRef.add.image(0,0,"sky_day")
+    worldReady = true;
+
+    sceneRef.add.image(0,0,"sky_day")
         .setOrigin(0)
         .setDisplaySize(config.width, config.height);
 
-    cloud1 = sceneRef.add.tileSprite(0,120,config.width,200,"clouds_1").setOrigin(0);
-    cloud2 = sceneRef.add.tileSprite(0,260,config.width,200,"clouds_2").setOrigin(0);
-
-    cloud1.setAlpha(0.3);
-    cloud2.setAlpha(0.2);
-
-    sprAirport = sceneRef.add.image(0, config.height-220, "airport")
+    sceneRef.add.tileSprite(0,100,config.width,150,"cloud1")
         .setOrigin(0)
-        .setDisplaySize(config.width, 300);
+        .setAlpha(0.2);
 
-    sprRunway = sceneRef.add.image(0, config.height-120, "runway")
+    sceneRef.add.tileSprite(0,250,config.width,150,"cloud2")
         .setOrigin(0)
-        .setDisplaySize(config.width, 120);
+        .setAlpha(0.15);
 
-    planeTargetX = config.width/2;
-    planeTargetY = config.height*0.6;
+    targetText = sceneRef.add.text(20,20,"",{
+        fontSize:"60px",
+        color:"#FFD93D"
+    });
 }
 
 /* ================= PLANE ================= */
@@ -180,6 +140,9 @@ function spawnPlane() {
     plane.setScale(0.3);
     plane.setCollideWorldBounds(true);
 
+    planeTargetX = plane.x;
+    planeTargetY = plane.y;
+
     sceneRef.input.on("pointermove", (p) => {
         planeTargetX = p.x;
         planeTargetY = config.height*0.6;
@@ -193,16 +156,14 @@ function spawnLetters() {
     letters.forEach(l => l.destroy());
     letters = [];
 
-    let pool = generatePool();
-
-    for (let i = 0; i < 7; i++) {
+    for (let i=0;i<7;i++) {
 
         let txt = sceneRef.add.text(
             Phaser.Math.Between(100, config.width-100),
-            Phaser.Math.Between(-300, -50),
-            pool[i],
+            Phaser.Math.Between(100, config.height-100),
+            LETTERS[Math.floor(Math.random()*LETTERS.length)],
             {
-                fontSize:"96px",
+                fontSize:"80px",
                 color:"#FFD93D"
             }
         );
@@ -216,35 +177,15 @@ function spawnLetters() {
     sceneRef.physics.add.overlap(plane, letters, collect);
 }
 
-/* ================= POOL ================= */
+/* ================= TARGET SAFE ================= */
 
-function generatePool() {
+function pickTarget() {
 
-    let pool = [];
+    if (letters.length === 0) return;
 
-    pool.push(getValidTarget());
-    pool.push(getValidTarget());
-
-    while(pool.length < 7) {
-        pool.push(LETTERS[Math.floor(Math.random()*LETTERS.length)]);
-    }
-
-    return Phaser.Utils.Array.Shuffle(pool);
-}
-
-/* ================= TARGET SAFETY ================= */
-
-function setTarget() {
-
-    let valid = letters.map(l => l.text);
-
-    if(valid.length === 0) return;
-
-    targetLetter = valid[Math.floor(Math.random()*valid.length)];
-
-    if(!targetText) {
-        targetText = sceneRef.add.text(20,20,"",{fontSize:"64px",color:"#fff"});
-    }
+    targetLetter = letters[
+        Phaser.Math.Between(0, letters.length-1)
+    ].text;
 
     targetText.setText("الحرف: " + targetLetter);
 
@@ -255,49 +196,49 @@ function setTarget() {
 
 function update() {
 
-    if(GAME_MODE === "MENU") return;
+    if (GAME_MODE !== "RUNNING") return;
+
+    if (!plane) return;
 
     updatePlane();
 
-    cloud1.tilePositionX += 0.3;
-    cloud2.tilePositionX += 0.5;
-
     letters.forEach(l => {
+        l.y += 2.5;
 
-        l.y += speed;
-
-        if(l.y > config.height + 100) {
-            l.y = -100;
+        if (l.y > config.height+50) {
+            l.y = -50;
         }
     });
 }
 
-/* ================= PLANE MOVEMENT ================= */
+/* ================= PLANE ================= */
 
 function updatePlane() {
+
+    if (!plane) return;
 
     let dx = planeTargetX - plane.x;
     let dy = planeTargetY - plane.y;
 
-    velX += dx * 0.05;
-    velY += dy * 0.05;
+    velX += dx * 0.04;
+    velY += dy * 0.04;
 
-    velX *= 0.85;
-    velY *= 0.85;
+    velX *= 0.86;
+    velY *= 0.86;
 
     plane.x += velX;
     plane.y += velY;
 
-    plane.angle = Phaser.Math.Clamp(velX * 0.2, -10, 10);
+    plane.angle = Phaser.Math.Clamp(velX * 0.2, -12, 12);
 }
 
 /* ================= COLLECT ================= */
 
 function collect(_, letter) {
 
-    if(!letter || !letter.text) return;
+    if (!letter || !letter.text) return;
 
-    if(letter.text === targetLetter) {
+    if (letter.text === targetLetter) {
 
         spawnBurst(letter.x, letter.y);
 
@@ -305,47 +246,40 @@ function collect(_, letter) {
 
         letters = letters.filter(l => l !== letter);
 
-        if(letters.length < 5) spawnLetters();
-
-        setTarget();
-
+        spawnLetters();
+        pickTarget();
     }
+}
+
+/* ================= AUDIO SAFE ================= */
+
+function playAudio(letter) {
+
+    const key = AUDIO_MAP[letter];
+    if (!key) return;
+
+    if (sceneRef.sound.get(key)) {
+        sceneRef.sound.get(key).stop();
+    }
+
+    sceneRef.sound.play(key);
 }
 
 /* ================= BURST ================= */
 
 function spawnBurst(x,y) {
 
-    for(let i=0;i<20;i++) {
+    for (let i=0;i<18;i++) {
 
         let p = sceneRef.add.circle(x,y,10,0xFFD93D);
 
         sceneRef.tweens.add({
             targets:p,
-            x:x + Phaser.Math.Between(-150,150),
-            y:y + Phaser.Math.Between(-150,150),
+            x:x + Phaser.Math.Between(-120,120),
+            y:y + Phaser.Math.Between(-120,120),
             alpha:0,
-            duration:600,
+            duration:500,
             onComplete:()=>p.destroy()
         });
     }
-}
-
-/* ================= AUDIO ================= */
-
-function playAudio(letter) {
-
-    let key = AUDIO_MAP[letter];
-    if(!key) return;
-
-    let existing = sceneRef.sound.get(key);
-    if(existing) existing.stop();
-
-    sceneRef.sound.play(key,{volume:1});
-}
-
-/* ================= SAFETY ================= */
-
-function getValidTarget() {
-    return LETTERS[Math.floor(Math.random()*LETTERS.length)];
 }
