@@ -11,6 +11,13 @@ const config = {
 
 new Phaser.Game(config);
 
+
+let skyDay;
+let skySunset;
+let skyNight;
+
+
+
 /* ================= MODE SELECT SCREEN ================= */
 function showModeSelect() {
 
@@ -128,8 +135,7 @@ function create() {
     showModeSelect();
 }
 /* ================= SKY SYSTEM (ASSET BASED - SAFE) ================= */
-let skyDay, skySunset, skyNight;
-
+//let skyDay, skySunset, skyNight;
 function buildSky() {
 
     skyDay = sceneRef.add.image(0, 0, "sky_day")
@@ -146,14 +152,6 @@ function buildSky() {
         .setOrigin(0)
         .setDisplaySize(1280, 720)
         .setAlpha(0);
-
-    sceneRef.cloud1 = sceneRef.add.tileSprite(0, 120, 1280, 200, "cloud1")
-        .setOrigin(0)
-        .setAlpha(0.35);
-
-    sceneRef.cloud2 = sceneRef.add.tileSprite(0, 260, 1280, 200, "cloud2")
-        .setOrigin(0)
-        .setAlpha(0.25);
 }
 /* ================= INPUT (TV SAFE) ================= */
 
@@ -254,19 +252,19 @@ function updateSky() {
 
     let cycle = Math.sin(skyTimer);
 
-    let state = 0;
-    if (cycle < -0.2) state = 2;   // night
-    else if (cycle < 0.3) state = 0; // day
-    else state = 1; // sunset
+    let state;
 
-    skyDay.alpha = (state === 0) ? 1 : 0;
-    skySunset.alpha = (state === 1) ? 1 : 0;
-    skyNight.alpha = (state === 2) ? 1 : 0;
+    if (cycle < -0.2) state = 2;      // night
+    else if (cycle < 0.3) state = 0;  // day
+    else state = 1;                   // sunset
+
+    if (skyDay) skyDay.alpha = (state === 0) ? 1 : 0;
+    if (skySunset) skySunset.alpha = (state === 1) ? 1 : 0;
+    if (skyNight) skyNight.alpha = (state === 2) ? 1 : 0;
 
     sceneRef.cloud1.tilePositionX += 0.3;
     sceneRef.cloud2.tilePositionX += 0.15;
 }
-
 /* ================= PLANE (VERTICAL RUNNER FEEL) ================= */
 
 function updatePlane() {
