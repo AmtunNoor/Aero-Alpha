@@ -308,8 +308,9 @@ function spawnLetters() {
     );
 }
 /* ================= UPDATE ================= */
-
 function update() {
+
+    if (!plane) return;
 
     updatePlane();
 
@@ -319,10 +320,9 @@ function update() {
         updateFreeFlight();
     }
 
-    cloud1.tilePositionX += 0.3;
-    cloud2.tilePositionX += 0.5;
+    if (cloud1) cloud1.tilePositionX += 0.3;
+    if (cloud2) cloud2.tilePositionX += 0.5;
 }
-
 /* ================= RUNNER MODE ================= */
 
 function updateRunner() {
@@ -364,11 +364,10 @@ function updateFreeFlight() {
 /* ================= PREMIUM PLANE ================= */
 function updatePlane() {
 
-    let dx =
-        planeTargetX - plane.x;
+    if (!plane) return;
 
-    let dy =
-        planeTargetY - plane.y;
+    let dx = planeTargetX - plane.x;
+    let dy = planeTargetY - plane.y;
 
     velX += dx * 0.05;
     velY += dy * 0.05;
@@ -379,12 +378,11 @@ function updatePlane() {
     plane.x += velX;
     plane.y += velY;
 
-    plane.angle =
-        Phaser.Math.Clamp(
-            velX * 0.25,
-            -12,
-            12
-        );
+    plane.angle = Phaser.Math.Clamp(
+        velX * 0.25,
+        -12,
+        12
+    );
 }
 /* ================= SHOW MENU ================= */
 function showMenu() {
