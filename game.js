@@ -72,47 +72,93 @@ function preload() {
     this.load.image("cloud2","assets/images/clouds_2.png");
 
     this.load.image("plane_trainer","assets/images/plane_trainer.png");
+    this.load.image("background_menu","assets/images/background_menu.png");
 
-    Object.values(AUDIO_MAP).forEach(k => {
+  /*  Object.values(AUDIO_MAP).forEach(k => {
         this.load.audio(k, `assets/sound/letters/${k}.mp3`);
-    });
+    }); */
 }
 
 /* ================= CREATE ================= */
-
 function create() {
 
     sceneRef = this;
 
     generateLanes();
 
-    skyImage = this.add.image(0,0,"sky_day")
-        .setOrigin(0)
-        .setDisplaySize(config.width, config.height);
+    showMenu();
 
-    cloud1 = this.add.tileSprite(0,120,config.width,200,"cloud1").setOrigin(0);
-    cloud2 = this.add.tileSprite(0,220,config.width,200,"cloud2").setOrigin(0);
+}
+
+/* ================= BUILD WORLD ================= */
+function buildWorld() {
+
+    skyImage = sceneRef.add.image(
+        0,
+        0,
+        "sky_day"
+    )
+    .setOrigin(0)
+    .setDisplaySize(
+        config.width,
+        config.height
+    );
+
+    cloud1 = sceneRef.add.tileSprite(
+        0,
+        120,
+        config.width,
+        200,
+        "cloud1"
+    ).setOrigin(0);
+
+    cloud2 = sceneRef.add.tileSprite(
+        0,
+        220,
+        config.width,
+        200,
+        "cloud2"
+    ).setOrigin(0);
 
     cloud1.setAlpha(0.3);
     cloud2.setAlpha(0.2);
 
-    sprAirport = this.add.image(0, config.height-220, "airport")
-        .setOrigin(0)
-        .setDisplaySize(config.width, 300);
+    sprAirport = sceneRef.add.image(
+        0,
+        config.height - 220,
+        "airport"
+    )
+    .setOrigin(0)
+    .setDisplaySize(
+        config.width,
+        300
+    );
 
-    sprRunway = this.add.image(0, config.height-120, "runway")
-        .setOrigin(0)
-        .setDisplaySize(config.width, 120);
+    sprRunway = sceneRef.add.image(
+        0,
+        config.height - 120,
+        "runway"
+    )
+    .setOrigin(0)
+    .setDisplaySize(
+        config.width,
+        120
+    );
 
-    plane = this.physics.add.image(config.width/2, config.height*0.75, "plane_trainer");
+    plane = sceneRef.physics.add.image(
+        config.width / 2,
+        config.height * 0.75,
+        "plane_trainer"
+    );
+
     plane.setScale(0.3);
+
     plane.setCollideWorldBounds(true);
 
     planeTargetX = plane.x;
     planeTargetY = plane.y;
 
-    /* ✈️ floating feel */
-    this.tweens.add({
+    sceneRef.tweens.add({
         targets: plane,
         y: plane.y - 6,
         duration: 1400,
@@ -121,16 +167,20 @@ function create() {
         ease: "Sine.easeInOut"
     });
 
-    this.input.on("pointermove", (p) => {
+    sceneRef.input.on("pointermove", (p) => {
 
-        planeTargetX = Phaser.Math.Clamp(p.x, config.width*0.1, config.width*0.9);
-        planeTargetY = config.height * 0.7;
+        planeTargetX = Phaser.Math.Clamp(
+            p.x,
+            config.width * 0.1,
+            config.width * 0.9
+        );
+
+        planeTargetY =
+            config.height * 0.7;
+
     });
 
-    //startGame();
-    showMenu();
 }
-
 /* ================= MODE SWITCH ================= */
 
 function switchMode(mode) {
@@ -145,12 +195,32 @@ function switchMode(mode) {
 }
 
 /* ================= GAME START ================= */
-
 function startGame() {
+
+    targetLetter =
+        LETTERS[
+            Phaser.Math.Between(
+                0,
+                LETTERS.length - 1
+            )
+        ];
+
+    targetText = sceneRef.add.text(
+        20,
+        20,
+        "",
+        {
+            fontSize:"64px",
+            color:"#FFD93D",
+            stroke:"#000",
+            strokeThickness:10
+        }
+    );
+
     spawnLetters();
+
     nextTarget();
 }
-
 /* ================= TARGET SYSTEM ================= */
 function nextTarget() {
 
@@ -277,20 +347,17 @@ function updateRunner() {
 }
 
 /* ================= FREE FLIGHT MODE ================= */
-
 function updateFreeFlight() {
-
-    let s = boostActive ? speed * 2 : speed;
 
     letters.forEach(l => {
 
-        l.y += s;
-        l.x = l.baseX + Math.sin((l.y + l.wave) * 0.01) * 70;
+        l.x += Math.sin(
+            (Date.now() + l.wave) * 0.001
+        ) * 0.6;
 
-        if (l.y > config.height + 100) {
-            l.y = -100;
-            l.baseX = Math.random() * config.width;
-        }
+        l.y += Math.cos(
+            (Date.now() + l.wave) * 0.001
+        ) * 0.4;
     });
 }
 
@@ -322,61 +389,153 @@ function updatePlane() {
 /* ================= SHOW MENU ================= */
 function showMenu() {
 
-    sceneRef.add.image(
+    // Background
+    const bg = sceneRef.add.image(
         config.width / 2,
         config.height / 2,
         "background_menu"
-    )
-    .setDisplaySize(
+    );
+
+    bg.setDisplaySize(
         config.width,
         config.height
     );
 
-    let runnerBtn =
-        sceneRef.add.text(
-            config.width/2,
-            config.height*0.45,
-            "✈ Sky Runner",
-            {
-                fontSize:"54px",
-                color:"#FFD93D",
-                backgroundColor:"#000"
-            }
-        )
-        .setOrigin(0.5)
-        .setInteractive();
+    // Dark overlay for readability
+    const overlay = sceneRef.add.rectangle(
+        config.width / 2,
+        config.height / 2,
+        config.width,
+        config.height,
+        0x000000,
+        0.35
+    );
 
-    let freeBtn =
-        sceneRef.add.text(
-            config.width/2,
-            config.height*0.60,
-            "🛩 Free Flight",
-            {
-                fontSize:"54px",
-                color:"#FFD93D",
-                backgroundColor:"#000"
-            }
-        )
-        .setOrigin(0.5)
-        .setInteractive();
+    // Game title
+    const title = sceneRef.add.text(
+        config.width / 2,
+        config.height * 0.18,
+        "AERO ALPHA",
+        {
+            fontSize: "72px",
+            fontStyle: "bold",
+            color: "#FFD93D",
+            stroke: "#000000",
+            strokeThickness: 10
+        }
+    )
+    .setOrigin(0.5);
 
+    // Subtitle
+    const subtitle = sceneRef.add.text(
+        config.width / 2,
+        config.height * 0.28,
+        "Learn Arabic Letters Through Flight",
+        {
+            fontSize: "28px",
+            color: "#FFFFFF",
+            stroke: "#000000",
+            strokeThickness: 5
+        }
+    )
+    .setOrigin(0.5);
+
+    // Runner button
+    const runnerBtn = sceneRef.add.text(
+        config.width / 2,
+        config.height * 0.50,
+        "✈ Sky Runner",
+        {
+            fontSize: "52px",
+            color: "#FFD93D",
+            backgroundColor: "#1E1E1E",
+            padding: {
+                left: 30,
+                right: 30,
+                top: 15,
+                bottom: 15
+            }
+        }
+    )
+    .setOrigin(0.5)
+    .setInteractive({ useHandCursor: true });
+
+    // Free Flight button
+    const freeBtn = sceneRef.add.text(
+        config.width / 2,
+        config.height * 0.65,
+        "🛩 Free Flight",
+        {
+            fontSize: "52px",
+            color: "#FFD93D",
+            backgroundColor: "#1E1E1E",
+            padding: {
+                left: 30,
+                right: 30,
+                top: 15,
+                bottom: 15
+            }
+        }
+    )
+    .setOrigin(0.5)
+    .setInteractive({ useHandCursor: true });
+
+    // Hover animation
+    [runnerBtn, freeBtn].forEach(btn => {
+
+        btn.on("pointerover", () => {
+
+            sceneRef.tweens.add({
+                targets: btn,
+                scaleX: 1.05,
+                scaleY: 1.05,
+                duration: 120
+            });
+
+        });
+
+        btn.on("pointerout", () => {
+
+            sceneRef.tweens.add({
+                targets: btn,
+                scaleX: 1,
+                scaleY: 1,
+                duration: 120
+            });
+
+        });
+
+    });
+
+    // Runner mode
     runnerBtn.on("pointerdown", () => {
 
         GAME_MODE = "RUNNER";
 
+        bg.destroy();
+        overlay.destroy();
+        title.destroy();
+        subtitle.destroy();
         runnerBtn.destroy();
         freeBtn.destroy();
 
+        buildWorld();
         startGame();
     });
 
+    // Free Flight mode
     freeBtn.on("pointerdown", () => {
 
         GAME_MODE = "FREEFLIGHT";
 
+        bg.destroy();
+        overlay.destroy();
+        title.destroy();
+        subtitle.destroy();
         runnerBtn.destroy();
         freeBtn.destroy();
 
+        buildWorld();
         startGame();
     });
 }
