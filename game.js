@@ -14,7 +14,6 @@ new Phaser.Game(config);
 /* ================= STATE ================= */
 
 let sceneRef;
-
 let GAME_MODE = "MENU";
 
 let plane;
@@ -24,21 +23,23 @@ let planeTargetY = 0;
 let velX = 0, velY = 0;
 
 let letters = [];
-let targetLetter;
+let targetLetter = null;
 let targetText;
 
 let worldReady = false;
-/* ================= V21 FIX LAYER CONTROLLERS ================= */
+
+/* ================= AUDIO ================= */
 
 let AUDIO_QUEUE = [];
 let AUDIO_PLAYING = false;
 
+/* ================= STATE CONTROLLER ================= */
+
 let STATE = {
-  targetCooldown: 2000,
-  spawnCooldown: 900,
-  lastTargetTime: 0,
-  lastSpawnTime: 0,
-  mode: "MENU"
+    targetCooldown: 2000,
+    lastTargetTime: 0,
+    mode: "MENU",
+    letterSpeed: 2.2
 };
 
 /* ================= LETTERS ================= */
@@ -59,13 +60,10 @@ const AUDIO_MAP = {
 /* ================= PRELOAD ================= */
 
 function preload() {
-
     this.load.image("background_menu","assets/images/background_menu.png");
-
     this.load.image("sky_day","assets/images/sky_day.webp");
     this.load.image("cloud1","assets/images/clouds_1.png");
     this.load.image("cloud2","assets/images/clouds_2.png");
-
     this.load.image("plane_trainer","assets/images/plane_trainer.png");
 
     Object.values(AUDIO_MAP).forEach(k => {
@@ -76,7 +74,6 @@ function preload() {
 /* ================= CREATE ================= */
 
 function create() {
-
     sceneRef = this;
     showMenu();
 }
@@ -84,27 +81,27 @@ function create() {
 /* ================= MENU ================= */
 
 function showMenu() {
-
     GAME_MODE = "MENU";
+
+    sceneRef.children.removeAll();
 
     sceneRef.add.image(0,0,"background_menu")
         .setOrigin(0)
         .setDisplaySize(config.width, config.height);
 
-    let btn = sceneRef.add.text(config.width/2, config.height/2,
+    const btn = sceneRef.add.text(
+        config.width/2,
+        config.height/2,
         "START SKY RUNNER",
         { fontSize:"50px", color:"#FFD93D", backgroundColor:"#000" }
     ).setOrigin(0.5).setInteractive();
 
-    btn.on("pointerdown", () => {
-        startGame();
-    });
+    btn.on("pointerdown", startGame);
 }
 
 /* ================= START GAME ================= */
 
 function startGame() {
-
     GAME_MODE = "RUNNING";
 
     sceneRef.children.removeAll();
@@ -112,13 +109,12 @@ function startGame() {
     buildWorld();
     spawnPlane();
     spawnLetters();
-    pickTarget();
+    pickTarget(true);
 }
 
 /* ================= WORLD ================= */
 
 function buildWorld() {
-
     worldReady = true;
 
     sceneRef.add.image(0,0,"sky_day")
@@ -142,7 +138,6 @@ function buildWorld() {
 /* ================= PLANE ================= */
 
 function spawnPlane() {
-
     plane = sceneRef.physics.add.image(
         config.width/2,
         config.height*0.7,
@@ -157,27 +152,24 @@ function spawnPlane() {
 
     sceneRef.input.on("pointermove", (p) => {
         planeTargetX = p.x;
-        planeTargetY = config.height*0.6;
+        planeTargetY = config.height * 0.6;
     });
+
+    sceneRef.physics.add.overlap(plane, letters, collect);
 }
 
 /* ================= LETTER SYSTEM ================= */
 
 function spawnLetters() {
-if (letters.length > 12) return;
     letters.forEach(l => l.destroy());
     letters = [];
 
-    for (let i=0;i<7;i++) {
-
-        let txt = sceneRef.add.text(
-            Phaser.Math.Between(100, config.width-100),
-            Phaser.Math.Between(100, config.height-100),
-            LETTERS[Math.floor(Math.random()*LETTERS.length)],
-            {
-                fontSize:"80px",
-                color:"#FFD93D"
-            }
+    for (let i = 0; i < 7; i++) {
+        const txt = sceneRef.add.text(
+            Phaser.Math.Between(100, config.width - 100),
+            Phaser.Math.Between(100, config.height - 100),
+            LETTERS[Math.floor(Math.random() * LETTERS.length)],
+            { fontSize:"80px", color:"#FFD93D" }
         );
 
         sceneRef.physics.add.existing(txt);
@@ -189,20 +181,18 @@ if (letters.length > 12) return;
     sceneRef.physics.add.overlap(plane, letters, collect);
 }
 
-/* ================= TARGET SAFE ================= */
-function pickTarget(force = false) {
+/* ================= TARGET ================= */
 
+function pickTarget(force = false) {
     const now = Date.now();
 
-    if (!force && now - STATE.lastTargetTime < STATE.targetCooldown) {
-        return;
-    }
-
+    if (!force && now - STATE.lastTargetTime < STATE.targetCooldown) return;
     if (letters.length === 0) return;
 
-    targetLetter = letters[
-        Phaser.Math.Between(0, letters.length - 1)
-    ].text;
+    const valid = letters.filter(l => l && l.active);
+    if (valid.length === 0) return;
+
+    targetLetter = valid[Math.floor(Math.random() * valid.length)].text;
 
     targetText.setText("الحرف: " + targetLetter);
 
@@ -210,54 +200,34 @@ function pickTarget(force = false) {
 
     playAudio(targetLetter);
 }
-/* ================= UPDATE ================= */
+
+/* ================= UPDATE LOOP ================= */
 
 function update() {
-
-    if (GAME_MODE !== "RUNNING") return;
-
-    if (!plane) return;
-
-    updatePlane();
-
-   letters.forEach(l => {
-
-    let speed = 2.2;
-
-    if (STATE.mode === "RUNNING_FAST") speed = 3.5;
-    if (STATE.mode === "RUNNING_SLOW") speed = 1.5;
-
-    l.y += speed;
-
-    if (l.y > config.height + 50) {
-        l.y = -50;
-    }
-});
-    function update(time) {
-
     if (GAME_MODE !== "RUNNING") return;
     if (!plane) return;
 
     updatePlane();
 
-    // 🔥 CONTROL TARGET CHANGE FLOW
+    const speed = STATE.letterSpeed;
+
+    letters.forEach(l => {
+        if (!l) return;
+
+        l.y += speed;
+
+        if (l.y > config.height + 50) {
+            l.y = -50;
+            l.x = Phaser.Math.Between(100, config.width - 100);
+        }
+    });
+
     pickTarget(false);
 }
 
-/* ================= Mode ================= */
-function setMode(mode) {
-    STATE.mode = mode;
-
-    if (mode === "MENU") showMenu();
-    if (mode === "RUNNING") startGame();
-}
-
-/* ================= PLANE ================= */
+/* ================= PLANE CONTROL ================= */
 
 function updatePlane() {
-
-    if (!plane) return;
-
     let dx = planeTargetX - plane.x;
     let dy = planeTargetY - plane.y;
 
@@ -276,11 +246,9 @@ function updatePlane() {
 /* ================= COLLECT ================= */
 
 function collect(_, letter) {
-
     if (!letter || !letter.text) return;
 
     if (letter.text === targetLetter) {
-
         spawnBurst(letter.x, letter.y);
 
         letter.destroy();
@@ -288,11 +256,12 @@ function collect(_, letter) {
         letters = letters.filter(l => l !== letter);
 
         spawnLetters();
-        pickTarget();
+        pickTarget(true);
     }
 }
 
-/* ================= AUDIO SAFE ================= */
+/* ================= AUDIO QUEUE ================= */
+
 function playAudio(letter) {
     const key = AUDIO_MAP[letter];
     if (!key) return;
@@ -302,13 +271,11 @@ function playAudio(letter) {
 }
 
 function processAudioQueue() {
-    if (AUDIO_PLAYING) return;
-    if (AUDIO_QUEUE.length === 0) return;
+    if (AUDIO_PLAYING || AUDIO_QUEUE.length === 0) return;
 
     AUDIO_PLAYING = true;
 
     const key = AUDIO_QUEUE.shift();
-
     const sound = sceneRef.sound.add(key);
 
     sound.once("complete", () => {
@@ -318,21 +285,20 @@ function processAudioQueue() {
 
     sound.play();
 }
-/* ================= BURST ================= */
 
-function spawnBurst(x,y) {
+/* ================= BURST FX ================= */
 
-    for (let i=0;i<18;i++) {
-
-        let p = sceneRef.add.circle(x,y,10,0xFFD93D);
+function spawnBurst(x, y) {
+    for (let i = 0; i < 18; i++) {
+        const p = sceneRef.add.circle(x, y, 10, 0xFFD93D);
 
         sceneRef.tweens.add({
-            targets:p,
-            x:x + Phaser.Math.Between(-120,120),
-            y:y + Phaser.Math.Between(-120,120),
-            alpha:0,
-            duration:500,
-            onComplete:()=>p.destroy();
+            targets: p,
+            x: x + Phaser.Math.Between(-120, 120),
+            y: y + Phaser.Math.Between(-120, 120),
+            alpha: 0,
+            duration: 500,
+            onComplete: () => p.destroy()
         });
     }
 }
