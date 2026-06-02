@@ -28,6 +28,18 @@ let targetLetter;
 let targetText;
 
 let worldReady = false;
+/* ================= V21 FIX LAYER CONTROLLERS ================= */
+
+let AUDIO_QUEUE = [];
+let AUDIO_PLAYING = false;
+
+let STATE = {
+  targetCooldown: 2000,
+  spawnCooldown: 900,
+  lastTargetTime: 0,
+  lastSpawnTime: 0,
+  mode: "MENU"
+};
 
 /* ================= LETTERS ================= */
 
@@ -152,7 +164,7 @@ function spawnPlane() {
 /* ================= LETTER SYSTEM ================= */
 
 function spawnLetters() {
-
+if (letters.length > 12) return;
     letters.forEach(l => l.destroy());
     letters = [];
 
@@ -178,20 +190,26 @@ function spawnLetters() {
 }
 
 /* ================= TARGET SAFE ================= */
+function pickTarget(force = false) {
 
-function pickTarget() {
+    const now = Date.now();
+
+    if (!force && now - STATE.lastTargetTime < STATE.targetCooldown) {
+        return;
+    }
 
     if (letters.length === 0) return;
 
     targetLetter = letters[
-        Phaser.Math.Between(0, letters.length-1)
+        Phaser.Math.Between(0, letters.length - 1)
     ].text;
 
     targetText.setText("الحرف: " + targetLetter);
 
+    STATE.lastTargetTime = now;
+
     playAudio(targetLetter);
 }
-
 /* ================= UPDATE ================= */
 
 function update() {
@@ -202,13 +220,36 @@ function update() {
 
     updatePlane();
 
-    letters.forEach(l => {
-        l.y += 2.5;
+   letters.forEach(l => {
 
-        if (l.y > config.height+50) {
-            l.y = -50;
-        }
-    });
+    let speed = 2.2;
+
+    if (STATE.mode === "RUNNING_FAST") speed = 3.5;
+    if (STATE.mode === "RUNNING_SLOW") speed = 1.5;
+
+    l.y += speed;
+
+    if (l.y > config.height + 50) {
+        l.y = -50;
+    }
+});
+    function update(time) {
+
+    if (GAME_MODE !== "RUNNING") return;
+    if (!plane) return;
+
+    updatePlane();
+
+    // 🔥 CONTROL TARGET CHANGE FLOW
+    pickTarget(false);
+}
+
+/* ================= Mode ================= */
+function setMode(mode) {
+    STATE.mode = mode;
+
+    if (mode === "MENU") showMenu();
+    if (mode === "RUNNING") startGame();
 }
 
 /* ================= PLANE ================= */
@@ -252,19 +293,31 @@ function collect(_, letter) {
 }
 
 /* ================= AUDIO SAFE ================= */
-
 function playAudio(letter) {
-
     const key = AUDIO_MAP[letter];
     if (!key) return;
 
-    if (sceneRef.sound.get(key)) {
-        sceneRef.sound.get(key).stop();
-    }
-
-    sceneRef.sound.play(key);
+    AUDIO_QUEUE.push(key);
+    processAudioQueue();
 }
 
+function processAudioQueue() {
+    if (AUDIO_PLAYING) return;
+    if (AUDIO_QUEUE.length === 0) return;
+
+    AUDIO_PLAYING = true;
+
+    const key = AUDIO_QUEUE.shift();
+
+    const sound = sceneRef.sound.add(key);
+
+    sound.once("complete", () => {
+        AUDIO_PLAYING = false;
+        processAudioQueue();
+    });
+
+    sound.play();
+}
 /* ================= BURST ================= */
 
 function spawnBurst(x,y) {
