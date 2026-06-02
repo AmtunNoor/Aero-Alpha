@@ -332,7 +332,7 @@ function spawnBurst(x,y) {
             y:y + Phaser.Math.Between(-120,120),
             alpha:0,
             duration:500,
-            onComplete:()=>p.destroy()
+            onComplete:()=>p.destroy();
         });
     }
 }
