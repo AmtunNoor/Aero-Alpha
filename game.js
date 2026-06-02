@@ -11,60 +11,25 @@ const config = {
 
 new Phaser.Game(config);
 
-
-let skyDay;
-let skySunset;
-let skyNight;
-
-
-
-/* ================= MODE SELECT SCREEN ================= */
-function showModeSelect() {
-
-    sceneRef.children.removeAll();
-
-    sceneRef.add.text(640, 200, "SELECT MODE", {
-        fontSize: "60px",
-        color: "#ffffff"
-    }).setOrigin(0.5);
-
-    const runnerBtn = sceneRef.add.text(640, 350, "✈ RUNNER MODE", {
-        fontSize: "40px",
-        color: "#FFD93D",
-        backgroundColor: "#000"
-    }).setOrigin(0.5).setInteractive();
-
-    const freeBtn = sceneRef.add.text(640, 450, "🕊 FREE FLIGHT MODE", {
-        fontSize: "40px",
-        color: "#00E5FF",
-        backgroundColor: "#000"
-    }).setOrigin(0.5).setInteractive();
-
-    runnerBtn.on("pointerdown", () => {
-        GAME_TYPE = "RUNNER";
-        startGame();
-    });
-
-    freeBtn.on("pointerdown", () => {
-        GAME_TYPE = "FREEFLIGHT";
-        startGame();
-    });
-}
-
 /* ================= CORE ================= */
 
 let sceneRef;
-//let GAME_MODE = "RUNNING";
-let GAME_MODE = "MENU";
-let GAME_TYPE = null; // "RUNNER" or "FREEFLIGHT"
+let GAME_MODE = "MENU"; // MENU → RUNNER → FREEFLIGHT (optional)
 
-/* ================= PLAYER (VERTICAL RUNNER STYLE) ================= */
+let WORLD_READY = false;
+
+/* ================= PLAYER ================= */
 
 let plane;
 let velX = 0, velY = 0;
-
 let targetX = 640;
 let targetY = 520;
+
+/* ================= SKY ================= */
+
+let skyDay, skySunset, skyNight;
+let cloud1, cloud2;
+let skyTimer = 0;
 
 /* ================= LETTERS ================= */
 
@@ -72,46 +37,9 @@ let letters = [];
 let targetLetter;
 let targetText;
 
-/* ================= SKY ASSETS ================= */
-
-let sky_day;
-let sky_sunset;
-let sky_night;
-
-let skyState = 0; 
-// 0 = day, 1 = sunset, 2 = night
-let skyTimer = 0;
-
-/* ================= startGame ================= */
-function startGame() {
-
-    GAME_MODE = "RUNNING";
-
-    sceneRef.children.removeAll();
-
-    buildSky();
-    setupInput();
-    spawnPlane();
-
-    spawnLetters();
-    pickTarget();
-
-    if (GAME_TYPE === "FREEFLIGHT") {
-        // disable letters in free flight mode
-        letters.forEach(l => l.destroy());
-        letters = [];
-        targetText.setText("FREE FLIGHT MODE");
-    }
-}
-
 /* ================= INPUT ================= */
 
-let INPUT = {
-    left:false,
-    right:false,
-    up:false,
-    down:false
-};
+let INPUT = { left:false, right:false, up:false, down:false };
 
 /* ================= PRELOAD ================= */
 
@@ -130,29 +58,75 @@ function preload() {
 /* ================= CREATE ================= */
 
 function create() {
+
     sceneRef = this;
 
-    showModeSelect();
+    showMenu();
+    setupInput();
 }
-/* ================= SKY SYSTEM (ASSET BASED - SAFE) ================= */
-//let skyDay, skySunset, skyNight;
+
+/* ================= MENU (RUNNER FIRST) ================= */
+
+function showMenu() {
+
+    sceneRef.add.text(640, 200, "SKY RUNNER", {
+        fontSize: "60px",
+        color: "#ffffff"
+    }).setOrigin(0.5);
+
+    const btn = sceneRef.add.text(640, 360, "START RUNNER", {
+        fontSize: "40px",
+        color: "#FFD93D",
+        backgroundColor: "#000"
+    }).setOrigin(0.5).setInteractive();
+
+    btn.on("pointerdown", startRunner);
+}
+
+/* ================= START RUNNER ================= */
+
+function startRunner() {
+
+    GAME_MODE = "RUNNER";
+
+    sceneRef.children.removeAll();
+
+    buildSky();
+    spawnPlane();
+    spawnLetters();
+    pickTarget();
+
+    WORLD_READY = true;
+}
+
+/* ================= SKY SAFE ================= */
+
 function buildSky() {
 
-    skyDay = sceneRef.add.image(0, 0, "sky_day")
+    skyDay = sceneRef.add.image(0,0,"sky_day")
         .setOrigin(0)
-        .setDisplaySize(1280, 720)
+        .setDisplaySize(1280,720)
         .setAlpha(1);
 
-    skySunset = sceneRef.add.image(0, 0, "sky_sunset")
+    skySunset = sceneRef.add.image(0,0,"sky_sunset")
         .setOrigin(0)
-        .setDisplaySize(1280, 720)
+        .setDisplaySize(1280,720)
         .setAlpha(0);
 
-    skyNight = sceneRef.add.image(0, 0, "sky_night")
+    skyNight = sceneRef.add.image(0,0,"sky_night")
         .setOrigin(0)
-        .setDisplaySize(1280, 720)
+        .setDisplaySize(1280,720)
         .setAlpha(0);
+
+    cloud1 = sceneRef.add.tileSprite(0,120,1280,200,"cloud1")
+        .setOrigin(0)
+        .setAlpha(0.35);
+
+    cloud2 = sceneRef.add.tileSprite(0,260,1280,200,"cloud2")
+        .setOrigin(0)
+        .setAlpha(0.25);
 }
+
 /* ================= INPUT (TV SAFE) ================= */
 
 function setupInput() {
@@ -197,13 +171,10 @@ function spawnLetters() {
     for (let i = 0; i < 7; i++) {
 
         let txt = sceneRef.add.text(
-            Phaser.Math.Between(150, 1130),
-            Phaser.Math.Between(50, 600),
-            String.fromCharCode(0x0627 + Math.floor(Math.random() * 10)),
-            {
-                fontSize: "64px",
-                color: "#ffffff"
-            }
+            Phaser.Math.Between(150,1130),
+            Phaser.Math.Between(80,600),
+            String.fromCharCode(0x0627 + Math.floor(Math.random()*10)),
+            { fontSize:"64px", color:"#fff" }
         );
 
         sceneRef.physics.add.existing(txt);
@@ -221,12 +192,12 @@ function pickTarget() {
 
     if (letters.length === 0) return;
 
-    targetLetter = letters[Math.floor(Math.random() * letters.length)].text;
+    targetLetter = letters[Math.floor(Math.random()*letters.length)].text;
 
     if (!targetText) {
-        targetText = sceneRef.add.text(20, 20, "", {
-            fontSize: "40px",
-            color: "#fff"
+        targetText = sceneRef.add.text(20,20,"",{
+            fontSize:"40px",
+            color:"#fff"
         });
     }
 
@@ -237,35 +208,37 @@ function pickTarget() {
 
 function update() {
 
+    if (GAME_MODE !== "RUNNER") return;
+
     updateSky();
-
-    if (GAME_MODE !== "RUNNING") return;
-
     updatePlane();
     updateLetters();
 }
 
-/* ================= SKY TRANSITION (SAFE + VISUAL) ================= */
+/* ================= SKY ================= */
+
 function updateSky() {
+
+    if (!WORLD_READY) return;
 
     skyTimer += 0.0005;
 
     let cycle = Math.sin(skyTimer);
 
-    let state;
+    let state = 0;
+    if (cycle < -0.2) state = 2;
+    else if (cycle < 0.3) state = 0;
+    else state = 1;
 
-    if (cycle < -0.2) state = 2;      // night
-    else if (cycle < 0.3) state = 0;  // day
-    else state = 1;                   // sunset
+    if (skyDay) skyDay.alpha = (state === 0 ? 1 : 0);
+    if (skySunset) skySunset.alpha = (state === 1 ? 1 : 0);
+    if (skyNight) skyNight.alpha = (state === 2 ? 1 : 0);
 
-    if (skyDay) skyDay.alpha = (state === 0) ? 1 : 0;
-    if (skySunset) skySunset.alpha = (state === 1) ? 1 : 0;
-    if (skyNight) skyNight.alpha = (state === 2) ? 1 : 0;
-
-    sceneRef.cloud1.tilePositionX += 0.3;
-    sceneRef.cloud2.tilePositionX += 0.15;
+    if (cloud1) cloud1.tilePositionX += 0.3;
+    if (cloud2) cloud2.tilePositionX += 0.15;
 }
-/* ================= PLANE (VERTICAL RUNNER FEEL) ================= */
+
+/* ================= PLANE ================= */
 
 function updatePlane() {
 
@@ -291,7 +264,7 @@ function updatePlane() {
     plane.angle = Phaser.Math.Clamp(velX * 0.2, -12, 12);
 }
 
-/* ================= LETTER MOVEMENT ================= */
+/* ================= LETTERS ================= */
 
 function updateLetters() {
 
@@ -301,7 +274,7 @@ function updateLetters() {
 
         if (l.y > 720) {
             l.y = -50;
-            l.x = Phaser.Math.Between(150, 1130);
+            l.x = Phaser.Math.Between(150,1130);
         }
     });
 }
@@ -322,19 +295,19 @@ function collect(_, letter) {
 
 /* ================= FX ================= */
 
-function spawnBurst(x, y) {
+function spawnBurst(x,y) {
 
-    for (let i = 0; i < 10; i++) {
+    for (let i=0;i<10;i++) {
 
-        let p = sceneRef.add.circle(x, y, 6, 0xffffff);
+        let p = sceneRef.add.circle(x,y,6,0xffffff);
 
         sceneRef.tweens.add({
-            targets: p,
-            x: x + Phaser.Math.Between(-80, 80),
-            y: y + Phaser.Math.Between(-80, 80),
-            alpha: 0,
-            duration: 400,
-            onComplete: () => p.destroy()
+            targets:p,
+            x:x+Phaser.Math.Between(-80,80),
+            y:y+Phaser.Math.Between(-80,80),
+            alpha:0,
+            duration:400,
+            onComplete:()=>p.destroy()
         });
     }
 }
