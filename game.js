@@ -2,7 +2,6 @@
 AERO ALPHA
 VERSION: v21.1 RC-STABLE (RESET BUILD)
 GOAL: NO-BREAK CORE LOOP
-Date: 06032026 11:11 PM
 ****************************************/
 
 const config = {
@@ -21,13 +20,7 @@ new Phaser.Game(config);
 /* ================= CORE ================= */
 
 let sceneRef;
-let skyState = 0;
-let skyTimer = 0;
 
-let sky;
-let airport;
-let runway;
-let GAME_MODE = "MENU";
 /* ================= PLAYER ================= */
 
 let plane;
@@ -122,57 +115,14 @@ function startGame() {
 
 function buildWorld() {
 
-    sky = sceneRef.add.image(
-        640,
-        360,
-        "sky_day"
-    );
+    sceneRef.add.image(640,360,"sky_day")
+        .setDisplaySize(1280,720);
 
-    sky.setDisplaySize(
-        1280,
-        720
-    );
+    sceneRef.add.image(640,520,"airport")
+        .setDisplaySize(1280,250);
 
-    airport = sceneRef.add.image(
-        640,
-        520,
-        "airport"
-    );
-
-    airport.setDisplaySize(
-        1280,
-        250
-    );
-
-    runway = sceneRef.add.image(
-        640,
-        650,
-        "runway"
-    );
-
-    runway.setDisplaySize(
-        1280,
-        150
-    );
-
-    sceneRef.time.delayedCall(
-        5000,
-        () => {
-
-            sceneRef.tweens.add({
-
-                targets:[
-                    airport,
-                    runway
-                ],
-
-                alpha:0,
-
-                duration:4000
-            });
-
-        }
-    );
+    sceneRef.add.image(640,650,"runway")
+        .setDisplaySize(1280,150);
 }
 
 /* ================= PLANE ================= */
@@ -182,104 +132,85 @@ function spawnPlane() {
     plane = sceneRef.physics.add.image(640,520,"plane");
     plane.setScale(0.3);
     plane.setCollideWorldBounds(true);
-    sceneRef.tweens.add({
-    targets: plane,
-    y: plane.y - 6,
-    duration: 1200,
-    yoyo: true,
-    repeat: -1,
-    ease: "Sine.easeInOut"
-});
 }
 
 /* ================= LETTERS ================= */
-function spawnPlane() {
 
-    plane = sceneRef.physics.add.image(
-        640,
-        520,
-        "plane"
-    );
+function spawnLetters() {
 
-    plane.setScale(0.3);
+    letters.forEach(l => l.destroy());
+    letters = [];
 
-    // Runner style (forward-facing)
-    plane.setAngle(-90);
+    let pool = [...LETTERS];
 
-    plane.setCollideWorldBounds(true);
+    for (let i = 0; i < 7; i++) {
 
-    targetX = plane.x;
-    targetY = plane.y;
-}
-/* ================= TARGET ================= */
-function pickTarget() {
+        let letter = pool[Math.floor(Math.random()*pool.length)];
 
-    if (letters.length === 0) return;
-
-    targetLetter =
-        letters[
-            Phaser.Math.Between(
-                0,
-                letters.length - 1
-            )
-        ].text;
-
-    if (!targetText) {
-
-        targetText = sceneRef.add.text(
-            20,
-            20,
-            "",
+        let t = sceneRef.add.text(
+            Phaser.Math.Between(200,1080),
+            Phaser.Math.Between(100,600),
+            letter,
             {
                 fontSize:"80px",
                 color:"#FFD93D",
                 stroke:"#000",
-                strokeThickness:10
+                strokeThickness:8
             }
         );
+
+        sceneRef.physics.add.existing(t);
+        t.body.setAllowGravity(false);
+
+        letters.push(t);
     }
 
-    targetText.setText(
-        "الحرف: " + targetLetter
-    );
+    sceneRef.physics.add.overlap(plane, letters, collect);
+}
+
+/* ================= TARGET ================= */
+
+function pickTarget() {
+
+    if (letters.length === 0) return;
+
+   /* targetLetter = letters[
+        Phaser.Math.Between(0, letters.length-1)
+    ].text; */
+
+    const activeLetters =
+    letters.filter(l => l && l.active !== false);
+
+if (activeLetters.length === 0) return;
+
+targetLetter =
+    Phaser.Utils.Array.GetRandom(activeLetters).text;
+    targetText.setText("TARGET: " + targetLetter);
+
+    if (!targetText) {
+        targetText = sceneRef.add.text(20,20,"",{
+            fontSize:"50px",
+            color:"#fff"
+        });
+    }
+
+    targetText.setText("TARGET: " + targetLetter);
 
     playAudio(targetLetter);
 }
+
 /* ================= UPDATE ================= */
 
 function update() {
 
-   // if (GAME_MODE !== "RUNNER") return;
-    if (!WORLD_READY) return;
+    if (!plane) return;
 
-    updateSky();
     updatePlane();
     updateLetters();
-
-    // ===== DAY / SUNSET / NIGHT =====
-
-    skyTimer++;
-
-    if (skyTimer > 1500) {
-
-        skyTimer = 0;
-
-        skyState++;
-
-        if (skyState > 2)
-            skyState = 0;
-
-        if (skyState === 0)
-            sky.setTexture("sky_day");
-
-        if (skyState === 1)
-            sky.setTexture("sky_sunset");
-
-        if (skyState === 2)
-            sky.setTexture("sky_night");
-    }
 }
+
 /* ================= PLANE CONTROL ================= */
+
 function setupInput() {
 
     sceneRef.input.keyboard.on("keydown", (e) => {
@@ -289,37 +220,9 @@ function setupInput() {
         if (e.code === "ArrowUp") targetY -= 40;
         if (e.code === "ArrowDown") targetY += 40;
     });
-
-    sceneRef.input.on("pointerdown", (pointer) => {
-
-        targetX = pointer.x;
-        targetY = pointer.y;
-    });
-
-    sceneRef.input.on("pointermove", (pointer) => {
-
-        if (!pointer.isDown) return;
-
-        targetX = pointer.x;
-        targetY = pointer.y;
-    });
-   }
-    
-    /* ============*/
+}
 
 function updatePlane() {
-
-    targetX = Phaser.Math.Clamp(
-        targetX,
-        80,
-        config.width - 80
-    );
-
-    targetY = Phaser.Math.Clamp(
-        targetY,
-        80,
-        config.height - 80
-    );
 
     let dx = targetX - plane.x;
     let dy = targetY - plane.y;
@@ -333,23 +236,7 @@ function updatePlane() {
     plane.x += vx;
     plane.y += vy;
 
-    plane.x = Phaser.Math.Clamp(
-        plane.x,
-        60,
-        config.width - 60
-    );
-
-    plane.y = Phaser.Math.Clamp(
-        plane.y,
-        60,
-        config.height - 60
-    );
-
-    plane.angle = Phaser.Math.Clamp(
-        vx * 0.2,
-        -12,
-        12
-    );
+    plane.angle = Phaser.Math.Clamp(vx * 0.2, -12, 12);
 }
 
 /* ================= LETTER MOVEMENT ================= */
@@ -398,30 +285,19 @@ function playAudio(letter) {
 }
 
 /* ================= FX ================= */
+
 function spawnBurst(x,y) {
 
-    for (let i = 0; i < 30; i++) {
+    for (let i=0;i<18;i++) {
 
-        let p =
-            sceneRef.add.circle(
-                x,
-                y,
-                10,
-                0xFFD93D
-            );
+        let p = sceneRef.add.circle(x,y,6,0xffffff);
 
         sceneRef.tweens.add({
-
             targets:p,
-
-            x:x + Phaser.Math.Between(-180,180),
-
-            y:y + Phaser.Math.Between(-180,180),
-
+            x:x+Phaser.Math.Between(-120,120),
+            y:y+Phaser.Math.Between(-120,120),
             alpha:0,
-
-            duration:700,
-
+            duration:500,
             onComplete:()=>p.destroy()
         });
     }
