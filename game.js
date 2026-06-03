@@ -185,8 +185,10 @@ if (activeLetters.length === 0) return;
 
 targetLetter =
     Phaser.Utils.Array.GetRandom(activeLetters).text;
-    targetText.setText("TARGET: " + targetLetter);
+  //  targetText.setText("TARGET: " + targetLetter);
+if (!targetText) return;
 
+targetText.setText("TARGET: " + targetLetter);
     if (!targetText) {
         targetText = sceneRef.add.text(20,20,"",{
             fontSize:"50px",
