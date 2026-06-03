@@ -2,6 +2,7 @@
 AERO ALPHA
 VERSION: v21.1 RC-STABLE (RESET BUILD)
 GOAL: NO-BREAK CORE LOOP
+Date: 06032026 11:11 PM
 ****************************************/
 
 const config = {
@@ -181,6 +182,14 @@ function spawnPlane() {
     plane = sceneRef.physics.add.image(640,520,"plane");
     plane.setScale(0.3);
     plane.setCollideWorldBounds(true);
+    sceneRef.tweens.add({
+    targets: plane,
+    y: plane.y - 6,
+    duration: 1200,
+    yoyo: true,
+    repeat: -1,
+    ease: "Sine.easeInOut"
+});
 }
 
 /* ================= LETTERS ================= */
@@ -297,7 +306,20 @@ function setupInput() {
    }
     
     /* ============*/
+
 function updatePlane() {
+
+    targetX = Phaser.Math.Clamp(
+        targetX,
+        80,
+        config.width - 80
+    );
+
+    targetY = Phaser.Math.Clamp(
+        targetY,
+        80,
+        config.height - 80
+    );
 
     let dx = targetX - plane.x;
     let dy = targetY - plane.y;
@@ -311,7 +333,23 @@ function updatePlane() {
     plane.x += vx;
     plane.y += vy;
 
-    plane.angle = Phaser.Math.Clamp(vx * 0.2, -12, 12);
+    plane.x = Phaser.Math.Clamp(
+        plane.x,
+        60,
+        config.width - 60
+    );
+
+    plane.y = Phaser.Math.Clamp(
+        plane.y,
+        60,
+        config.height - 60
+    );
+
+    plane.angle = Phaser.Math.Clamp(
+        vx * 0.2,
+        -12,
+        12
+    );
 }
 
 /* ================= LETTER MOVEMENT ================= */
