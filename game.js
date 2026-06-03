@@ -1,8 +1,7 @@
 /****************************************
 AERO ALPHA
-VERSION: v21.1 FINAL
-BUILD: TV-FIRST STABLE
-DATE: 2026-06-03
+VERSION: v21.1 RC-STABLE (RESET BUILD)
+GOAL: NO-BREAK CORE LOOP
 ****************************************/
 
 const config = {
@@ -21,16 +20,15 @@ new Phaser.Game(config);
 /* ================= CORE ================= */
 
 let sceneRef;
-let GAME_MODE = "MENU";
 
 /* ================= PLAYER ================= */
 
 let plane;
-let velX = 0, velY = 0;
 let targetX = 640;
 let targetY = 520;
+let vx = 0, vy = 0;
 
-/* ================= LETTERS ================= */
+/* ================= GAME STATE ================= */
 
 let letters = [];
 let targetLetter;
@@ -38,9 +36,9 @@ let targetText;
 
 /* ================= INPUT ================= */
 
-let INPUT = {};
+let input = {};
 
-/* ================= CONSTANTS ================= */
+/* ================= LETTER SET (FULL 28) ================= */
 
 const LETTERS = [
 "ا","ب","ت","ث","ج","ح","خ","د","ذ","ر","ز",
@@ -48,11 +46,13 @@ const LETTERS = [
 "ك","ل","م","ن","ه","و","ي"
 ];
 
+/* ================= AUDIO MAP ================= */
+
 const AUDIO_MAP = {
-"ا":"alif","ب":"ba","ت":"ta","ث":"thaa","ج":"jeem","ح":"haa","خ":"kha",
+"ا":"alif","ب":"ba","ت":"ta","ث":"thaa","ج":"jeem","ح":"ha","خ":"kha",
 "د":"daal","ذ":"zaal","ر":"raa","ز":"zaa","س":"seen","ش":"sheen","ص":"saad",
 "ض":"dad","ط":"toa","ظ":"zoa","ع":"ain","غ":"ghain","ف":"fa","ق":"qaaf",
-"ك":"kaf","ل":"laam","م":"meem","ن":"noon","ه":"ha","و":"waw","ي":"yaa"
+"ك":"kaf","ل":"laam","م":"meem","ن":"noon","ه":"haa","و":"waw","ي":"yaa"
 };
 
 /* ================= PRELOAD ================= */
@@ -60,15 +60,13 @@ const AUDIO_MAP = {
 function preload() {
 
     this.load.image("sky_day","assets/images/sky_day.webp");
-    this.load.image("sky_sunset","assets/images/sky_sunset.webp");
-    this.load.image("sky_night","assets/images/sky_night.webp");
 
-    this.load.image("plane_trainer","assets/images/plane_trainer.png");
+    this.load.image("plane","assets/images/plane_trainer.png");
 
     this.load.image("airport","assets/images/airport.png");
     this.load.image("runway","assets/images/runway.png");
 
-    this.load.image("background_menu","assets/images/background_menu.png");
+    this.load.image("menu","assets/images/background_menu.png");
 
     Object.values(AUDIO_MAP).forEach(k => {
         this.load.audio(k, `assets/sound/letters/${k}.mp3`);
@@ -78,7 +76,9 @@ function preload() {
 /* ================= CREATE ================= */
 
 function create() {
+
     sceneRef = this;
+
     showMenu();
     setupInput();
 }
@@ -87,28 +87,21 @@ function create() {
 
 function showMenu() {
 
-    sceneRef.add.image(640,360,"background_menu")
+    sceneRef.add.image(640,360,"menu")
         .setDisplaySize(1280,720);
 
-    sceneRef.add.text(640, 180, "AERO ALPHA", {
-        fontSize: "60px",
-        color: "#ffffff"
-    }).setOrigin(0.5);
-
-    const btn = sceneRef.add.text(640, 360, "START RUNNER", {
-        fontSize: "44px",
-        color: "#FFD93D",
-        backgroundColor: "#000"
+    let btn = sceneRef.add.text(640,360,"START",{
+        fontSize:"60px",
+        color:"#FFD93D",
+        backgroundColor:"#000"
     }).setOrigin(0.5).setInteractive();
 
     btn.on("pointerdown", startGame);
 }
 
-/* ================= START ================= */
+/* ================= START GAME ================= */
 
 function startGame() {
-
-    GAME_MODE = "RUNNER";
 
     sceneRef.children.removeAll();
 
@@ -122,74 +115,57 @@ function startGame() {
 
 function buildWorld() {
 
-    sceneRef.add.image(640,360,"sky_day").setDisplaySize(1280,720);
+    sceneRef.add.image(640,360,"sky_day")
+        .setDisplaySize(1280,720);
 
     sceneRef.add.image(640,520,"airport")
-        .setDisplaySize(1280,250)
-        .setAlpha(1);
+        .setDisplaySize(1280,250);
 
     sceneRef.add.image(640,650,"runway")
-        .setDisplaySize(1280,150)
-        .setAlpha(1);
+        .setDisplaySize(1280,150);
 }
 
 /* ================= PLANE ================= */
 
 function spawnPlane() {
 
-    plane = sceneRef.physics.add.image(640,520,"plane_trainer");
+    plane = sceneRef.physics.add.image(640,520,"plane");
     plane.setScale(0.3);
     plane.setCollideWorldBounds(true);
-
-    targetX = plane.x;
-    targetY = plane.y;
 }
 
-/* ================= LETTER SYSTEM ================= */
+/* ================= LETTERS ================= */
 
 function spawnLetters() {
 
     letters.forEach(l => l.destroy());
     letters = [];
 
-    const pool = buildLetterPool();
+    let pool = [...LETTERS];
 
-    for (let i = 0; i < pool.length; i++) {
+    for (let i = 0; i < 7; i++) {
 
-        let txt = sceneRef.add.text(
+        let letter = pool[Math.floor(Math.random()*pool.length)];
+
+        let t = sceneRef.add.text(
             Phaser.Math.Between(200,1080),
             Phaser.Math.Between(100,600),
-            pool[i],
+            letter,
             {
-                fontSize:"70px",
+                fontSize:"80px",
                 color:"#FFD93D",
                 stroke:"#000",
                 strokeThickness:8
             }
         );
 
-        sceneRef.physics.add.existing(txt);
-        txt.body.setAllowGravity(false);
+        sceneRef.physics.add.existing(t);
+        t.body.setAllowGravity(false);
 
-        letters.push(txt);
+        letters.push(t);
     }
 
     sceneRef.physics.add.overlap(plane, letters, collect);
-}
-
-/* ================= POOL ================= */
-
-function buildLetterPool() {
-
-    let pool = [];
-
-    pool.push(...LETTERS);
-
-    while(pool.length > 7) {
-        pool.splice(Math.floor(Math.random()*pool.length),1);
-    }
-
-    return pool;
 }
 
 /* ================= TARGET ================= */
@@ -204,7 +180,7 @@ function pickTarget() {
 
     if (!targetText) {
         targetText = sceneRef.add.text(20,20,"",{
-            fontSize:"40px",
+            fontSize:"50px",
             color:"#fff"
         });
     }
@@ -214,25 +190,75 @@ function pickTarget() {
     playAudio(targetLetter);
 }
 
-/* ================= COLLECT FIXED ================= */
+/* ================= UPDATE ================= */
+
+function update() {
+
+    if (!plane) return;
+
+    updatePlane();
+    updateLetters();
+}
+
+/* ================= PLANE CONTROL ================= */
+
+function setupInput() {
+
+    sceneRef.input.keyboard.on("keydown", (e) => {
+
+        if (e.code === "ArrowLeft") targetX -= 40;
+        if (e.code === "ArrowRight") targetX += 40;
+        if (e.code === "ArrowUp") targetY -= 40;
+        if (e.code === "ArrowDown") targetY += 40;
+    });
+}
+
+function updatePlane() {
+
+    let dx = targetX - plane.x;
+    let dy = targetY - plane.y;
+
+    vx += dx * 0.05;
+    vy += dy * 0.05;
+
+    vx *= 0.85;
+    vy *= 0.85;
+
+    plane.x += vx;
+    plane.y += vy;
+
+    plane.angle = Phaser.Math.Clamp(vx * 0.2, -12, 12);
+}
+
+/* ================= LETTER MOVEMENT ================= */
+
+function updateLetters() {
+
+    letters.forEach(l => {
+
+        l.y += 2.5;
+
+        if (l.y > 720) {
+            l.y = -50;
+            l.x = Phaser.Math.Between(200,1080);
+        }
+    });
+}
+
+/* ================= COLLECT (FIXED CORE) ================= */
 
 function collect(_, letter) {
 
-    if (!letter.active) return;
+    if (!letter || !letter.active) return;
 
-    if (letter.text !== targetLetter) {
-        return; // ignore wrong hits
-    }
+    if (letter.text !== targetLetter) return;
 
     spawnBurst(letter.x, letter.y);
 
     letters = letters.filter(l => l !== letter);
     letter.destroy();
 
-    if (letters.length < 5) {
-        spawnLetters();
-    }
-
+    spawnLetters();
     pickTarget();
 }
 
@@ -243,48 +269,13 @@ function playAudio(letter) {
     const key = AUDIO_MAP[letter];
     if (!key) return;
 
-    if (sceneRef.sound.get(key)) {
-        sceneRef.sound.get(key).stop();
-    }
+    let s = sceneRef.sound.get(key);
+    if (s) s.stop();
 
     sceneRef.sound.play(key);
 }
 
-/* ================= INPUT ================= */
-
-function setupInput() {
-
-    sceneRef.input.keyboard.on("keydown", (e) => {
-
-        if (e.code === "ArrowLeft") targetX -= 30;
-        if (e.code === "ArrowRight") targetX += 30;
-        if (e.code === "ArrowUp") targetY -= 30;
-        if (e.code === "ArrowDown") targetY += 30;
-    });
-}
-
-/* ================= UPDATE ================= */
-
-function update() {
-
-    if (!plane) return;
-
-    let dx = targetX - plane.x;
-    let dy = targetY - plane.y;
-
-    velX += dx * 0.05;
-    velY += dy * 0.05;
-
-    velX *= 0.85;
-    velY *= 0.85;
-
-    plane.x += velX;
-    plane.y += velY;
-
-    plane.angle = Phaser.Math.Clamp(velX * 0.2, -12, 12);
-}
-
-/* ================= BURST ================= */
+/* ================= FX ================= */
 
 function spawnBurst(x,y) {
 
