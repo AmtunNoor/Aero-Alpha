@@ -26,7 +26,7 @@ let skyTimer = 0;
 let sky;
 let airport;
 let runway;
-
+let GAME_MODE = "MENU";
 /* ================= PLAYER ================= */
 
 let plane;
@@ -240,7 +240,8 @@ function pickTarget() {
 
 function update() {
 
-    if (GAME_MODE !== "RUNNER") return;
+   // if (GAME_MODE !== "RUNNER") return;
+    if (!WORLD_READY) return;
 
     updateSky();
     updatePlane();
