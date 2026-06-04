@@ -1,4 +1,4 @@
-/* Created this game for Hamza & Mariam; June 2026 */
+/* Created this for Mariam & Hamza. June 2026, Amtun Noor) */
 
 const canvas = document.getElementById("gameCanvas") || document.createElement("canvas");
 if (!canvas.parentNode && document.body) {
@@ -88,12 +88,9 @@ class AeroAlphaGame {
         this.skyAlpha = 0.0;
         this.phaseTimer = 0;
 
-        // --- FIXED PARALLAX CLOUD MATRIX DATA ---
         this.clouds = [
-            // Foreground Clouds (Fast, Large, Visible)
             { x: 100, y: -200, baseSpeed: 3.5, type: 1, scale: 1.4, alpha: 0.8 },
             { x: canvas.width * 0.6, y: -500, baseSpeed: 4.0, type: 1, scale: 1.2, alpha: 0.75 },
-            // Background Clouds (Slow, Small, Faint Depth Layer)
             { x: canvas.width * 0.3, y: -350, baseSpeed: 1.2, type: 2, scale: 0.7, alpha: 0.4 },
             { x: canvas.width * 0.8, y: -700, baseSpeed: 0.9, type: 2, scale: 0.6, alpha: 0.35 }
         ];
@@ -119,24 +116,29 @@ class AeroAlphaGame {
         this.assets.clouds_1.src = "assets/images/clouds_1.png";
         this.assets.clouds_2.src = "assets/images/clouds_2.png";
 
+        // --- ASSET MIRRORING CONFIGURATION MATRIX ---
+        // isFlipped: Handles left-facing native artwork assets dynamically.
+        // targetJetStreamAngle: Gives each unique plane an distinct freshness climb angle.
         this.skinCollection = [
-            { level: 1, file: "plane_trainer.png", img: new Image(), name: "Trainer" },
-            { level: 3, file: "plane_falcon.png", img: new Image(), name: "Falcon" },
-            { level: 5, file: "plane_glider.png", img: new Image(), name: "Glider" },
-            { level: 7, file: "plane_gold.png", img: new Image(), name: "Gold" },
-            { level: 9, file: "plane_legend.png", img: new Image(), name: "Legend" }
+            { id: 0, level: 1, file: "plane_trainer.png", img: new Image(), name: "Trainer", targetJetStreamAngle: 15, isFlipped: false },
+            { id: 1, level: 3, file: "plane_falcon.png",  img: new Image(), name: "Falcon",  targetJetStreamAngle: 18, isFlipped: true  }, 
+            { id: 2, level: 5, file: "plane_glider.png",  img: new Image(), name: "Glider",  targetJetStreamAngle: 20, isFlipped: false },
+            { id: 3, level: 7, file: "plane_gold.png",    img: new Image(), name: "Gold",    targetJetStreamAngle: 22, isFlipped: true  }, 
+            { id: 4, level: 9, file: "plane_legend.png",  img: new Image(), name: "Legend",  targetJetStreamAngle: 25, isFlipped: true  }  
         ];
         
         this.skinCollection.forEach(skin => {
             skin.img.src = `assets/images/${skin.file}`;
         });
 
+        this.selectedSkinIndex = 0; 
+
         this.player = {
             x: canvas.width / 2,
             y: canvas.height * 0.70,
             targetX: canvas.width / 2,
             targetY: canvas.height * 0.70,
-            angle: -Math.PI / 4 
+            angle: 0
         };
 
         this.targetLetter = "";
@@ -145,12 +147,8 @@ class AeroAlphaGame {
         this.initControls();
     }
 
-    getCurrentSkinImg() {
-        let selected = this.skinCollection[0].img;
-        for (let skin of this.skinCollection) {
-            if (this.currentLevel >= skin.level) selected = skin.img;
-        }
-        return selected;
+    getSelectedSkin() {
+        return this.skinCollection[this.selectedSkinIndex];
     }
 
     requestNativeFullScreen() {
@@ -187,7 +185,7 @@ class AeroAlphaGame {
             
             if (e.key === " ") {
                 this.isBoosting = true;
-                this.boostTimer = 50;
+                this.boostTimer = 40;
             }
         });
 
@@ -207,6 +205,17 @@ class AeroAlphaGame {
                     if (clickX < midX) this.selectedMode = GameMode.JET_STREAM;
                     else this.selectedMode = GameMode.FREE_FLIGHT;
                     this.startGame();
+                }
+                const hY = canvas.height * 0.68;
+                if (clickY > hY + 15 && clickY < hY + 125) {
+                    this.skinCollection.forEach((skin, idx) => {
+                        let bx = midX - 270 + (idx * 110);
+                        if (clickX > bx && clickX < bx + 95) {
+                            if (this.currentLevel >= skin.level) {
+                                this.selectedSkinIndex = idx;
+                            }
+                        }
+                    });
                 }
                 if (clickX > canvas.width - 130 && clickY > canvas.height - 50) {
                     window.close();
@@ -231,7 +240,6 @@ class AeroAlphaGame {
         this.state = GameState.TAKEOFF_AIRPORT;
         this.score = 0;
         this.alphabetIndex = 0;
-        this.currentLevel = 1;
         this.phaseTimer = 0;
         
         this.airportAlpha = 1.0;
@@ -259,14 +267,18 @@ class AeroAlphaGame {
         playLetterAudio(this.targetLetter);
 
         this.spawnedLetters = [];
-        const totalColumns = this.currentProfile === Profile.HAMZA ? 3 : 5;
+        const totalLetters = this.currentProfile === Profile.HAMZA ? 3 : 5;
         
-        for (let i = 0; i < totalColumns; i++) {
+        for (let i = 0; i < totalLetters; i++) {
             let char = i === 0 ? this.targetLetter : ARABIC_ALPHABET_DATA[Math.floor(Math.random() * ARABIC_ALPHABET_DATA.length)].char;
+            
+            let randomX = Math.random() * (canvas.width - 200) + 100;
+            let randomSpreadY = -Math.random() * 600 - 150;
+
             this.spawnedLetters.push({
                 char,
-                x: (canvas.width / totalColumns) * i + (canvas.width / (totalColumns * 2)),
-                y: -Math.random() * 500 - 150,
+                x: randomX,
+                y: randomSpreadY,
                 collected: false
             });
         }
@@ -274,7 +286,6 @@ class AeroAlphaGame {
     }
 
     update() {
-        // --- REALISTIC DYNAMIC PARALLAX ENGINE ENGINE ---
         this.clouds.forEach(cloud => {
             let currentVelocity = cloud.baseSpeed * (this.isBoosting ? 2.5 : 1.0);
             cloud.y += currentVelocity;
@@ -298,8 +309,7 @@ class AeroAlphaGame {
                 });
             }
             this.confetti.forEach((c, idx) => {
-                c.y += c.speedY;
-                c.x += c.speedX;
+                c.y += c.speedY; c.x += c.speedX;
                 if (c.y > canvas.height) this.confetti.splice(idx, 1);
             });
             return;
@@ -307,46 +317,34 @@ class AeroAlphaGame {
 
         this.phaseTimer++;
 
-        // Smooth Sequential Transitions Mixer
         if (this.state === GameState.TAKEOFF_AIRPORT) {
             if (this.phaseTimer > 100) {
-                this.airportAlpha -= 0.015;
-                this.runwayAlpha += 0.015;
+                this.airportAlpha -= 0.015; this.runwayAlpha += 0.015;
                 if (this.airportAlpha <= 0) {
-                    this.airportAlpha = 0;
-                    this.runwayAlpha = 1.0;
-                    this.state = GameState.TAKEOFF_RUNWAY;
-                    this.phaseTimer = 0;
+                    this.airportAlpha = 0; this.runwayAlpha = 1.0;
+                    this.state = GameState.TAKEOFF_RUNWAY; this.phaseTimer = 0;
                 }
             }
         } else if (this.state === GameState.TAKEOFF_RUNWAY) {
             if (this.phaseTimer > 100) {
-                this.runwayAlpha -= 0.015;
-                this.skyAlpha += 0.015;
+                this.runwayAlpha -= 0.015; this.skyAlpha += 0.015;
                 if (this.runwayAlpha <= 0) {
-                    this.runwayAlpha = 0;
-                    this.skyAlpha = 1.0;
-                    this.state = GameState.SKY_FLIGHT;
-                    this.phaseTimer = 0;
+                    this.runwayAlpha = 0; this.skyAlpha = 1.0;
+                    this.state = GameState.SKY_FLIGHT; this.phaseTimer = 0;
                 }
             }
         } else if (this.state === GameState.LANDING_RUNWAY) {
-            this.skyAlpha -= 0.015;
-            this.runwayAlpha += 0.015;
+            this.skyAlpha -= 0.015; this.runwayAlpha += 0.015;
             if (this.skyAlpha <= 0) {
-                this.skyAlpha = 0;
-                this.runwayAlpha = 1.0;
+                this.skyAlpha = 0; this.runwayAlpha = 1.0;
                 if (this.phaseTimer > 120) {
-                    this.state = GameState.LANDING_AIRPORT;
-                    this.phaseTimer = 0;
+                    this.state = GameState.LANDING_AIRPORT; this.phaseTimer = 0;
                 }
             }
         } else if (this.state === GameState.LANDING_AIRPORT) {
-            this.runwayAlpha -= 0.015;
-            this.airportAlpha += 0.015;
+            this.runwayAlpha -= 0.015; this.airportAlpha += 0.015;
             if (this.runwayAlpha <= 0) {
-                this.runwayAlpha = 0;
-                this.airportAlpha = 1.0;
+                this.runwayAlpha = 0; this.airportAlpha = 1.0;
                 if (this.phaseTimer > 120) {
                     this.state = GameState.VICTORY_SCREEN;
                 }
@@ -361,68 +359,73 @@ class AeroAlphaGame {
             this.boostTimer--;
             if (this.boostTimer <= 0) this.isBoosting = false;
             
-            this.particles.push({
-                x: this.player.x,
-                y: this.player.y + 40,
-                alpha: 1.0,
-                color: this.selectedMode === GameMode.JET_STREAM ? "#FFC107" : "#00E5FF"
-            });
+            if (this.boostTimer % 2 === 0) {
+                this.particles.push({
+                    x: this.player.x - 10 + Math.random() * 20,
+                    y: this.player.y + 35,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: Math.random() * 4 + 5,
+                    radius: Math.random() * 6 + 8,
+                    alpha: 0.9,
+                    color: this.selectedMode === GameMode.JET_STREAM ? "rgba(255, 140, 0, 0.6)" : "rgba(0, 229, 255, 0.6)"
+                });
+            }
         }
 
         this.player.x += (this.player.targetX - this.player.x) * 0.12;
         this.player.y += (this.player.targetY - this.player.y) * 0.12;
 
+        // --- CALCULATE PHYSICS PITCH ANGLE BASED ON ENGINE MODE ---
+        let currentSkin = this.getSelectedSkin();
+        let targetAngleDegrees = 0;
+
         if (this.selectedMode === GameMode.JET_STREAM) {
-            let drift = (this.player.targetX - this.player.x) * 0.05;
-            this.player.angle = (-Math.PI / 4) + (drift * Math.PI / 180);
+            // Apply unique climb angle assigned to the active airplane skin
+            targetAngleDegrees = -currentSkin.targetJetStreamAngle;
+            
+            // Add bank angle drift on left/right navigation movements
+            let bankingDrift = (this.player.targetX - this.player.x) * 0.05;
+            targetAngleDegrees += bankingDrift;
         } else {
-            this.player.angle = 0; 
+            targetAngleDegrees = 0; // Flat horizontal flying profile for Free Flight
         }
+
+        this.player.angle = targetAngleDegrees * Math.PI / 180;
 
         if (this.state === GameState.SKY_FLIGHT) {
             this.spawnedLetters.forEach(letter => {
                 letter.y += speed;
-
                 let sizeScalar = canvas.width * 0.06;
                 if (!letter.collected && Math.hypot(letter.x - this.player.x, letter.y - this.player.y) < sizeScalar) {
                     letter.collected = true;
-                    
                     if (letter.char === this.targetLetter) {
                         this.score += 10;
                         this.bursts.push({ x: letter.x, y: letter.y, radius: 15, alpha: 1.0 });
-                        
                         this.alphabetIndex++;
                         this.currentLevel = Math.floor(this.score / 50) + 1;
-                        
                         if (this.currentProfile === Profile.MARIAM) {
                             this.speedMultiplier = 0.95 + (this.currentLevel * 0.05);
                         }
-
                         this.generateNextCurriculumTarget();
                     }
                 }
             });
 
             if (this.spawnedLetters.every(l => l.y > canvas.height || l.collected)) {
-                this.spawnedLetters.forEach(l => {
-                    l.y = -Math.random() * 400 - 150;
-                    l.collected = false;
-                });
+                this.generateNextCurriculumTarget();
             }
         }
 
-        this.particles.forEach((p, idx) => { p.y += 4; p.alpha -= 0.02; if (p.alpha <= 0) this.particles.splice(idx, 1); });
+        this.particles.forEach((p, idx) => { 
+            p.x += p.vx; p.y += p.vy; p.radius += 0.4; p.alpha -= 0.035; 
+            if (p.alpha <= 0) this.particles.splice(idx, 1); 
+        });
         this.bursts.forEach((b, idx) => { b.radius += 4; b.alpha -= 0.04; if (b.alpha <= 0) this.bursts.splice(idx, 1); });
     }
 
     draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        if (this.state === GameState.MENU) {
-            this.drawMenu();
-            return;
-        }
-
+        if (this.state === GameState.MENU) { this.drawMenu(); return; }
         this.drawGameplayScreen();
     }
 
@@ -430,284 +433,196 @@ class AeroAlphaGame {
         if (this.assets.background_menu.complete) {
             ctx.drawImage(this.assets.background_menu, 0, 0, canvas.width, canvas.height);
         } else {
-            ctx.fillStyle = "#0c192e";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#0c192e"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
         const midX = canvas.width / 2;
-
-        ctx.fillStyle = "#FFD700";
-        ctx.font = "normal 52px BalooBhaijaan, sans-serif";
-        ctx.textAlign = "center";
+        ctx.fillStyle = "#FFD700"; ctx.font = "normal 52px BalooBhaijaan, sans-serif"; ctx.textAlign = "center";
         ctx.fillText("AERO-ALPHA", midX, canvas.height * 0.18);
 
-        // --- 1. CLEAN PROFILES WITH RE-CENTERED VALUES ---
         ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-        ctx.fillRect(midX - 220, canvas.height * 0.28, 200, 70);
-        ctx.fillRect(midX + 20, canvas.height * 0.28, 200, 70);
+        ctx.fillRect(midX - 220, canvas.height * 0.28, 200, 70); ctx.fillRect(midX + 20, canvas.height * 0.28, 200, 70);
 
-        ctx.strokeStyle = "#00FFCC";
-        ctx.lineWidth = 4;
-        if (this.currentProfile === Profile.HAMZA) {
-            ctx.strokeRect(midX - 220, canvas.height * 0.28, 200, 70);
-        } else {
-            ctx.strokeRect(midX + 20, canvas.height * 0.28, 200, 70);
-        }
+        ctx.strokeStyle = "#00FFCC"; ctx.lineWidth = 4;
+        if (this.currentProfile === Profile.HAMZA) { ctx.strokeRect(midX - 220, canvas.height * 0.28, 200, 70); } 
+        else { ctx.strokeRect(midX + 20, canvas.height * 0.28, 200, 70); }
 
-        ctx.fillStyle = "#FFF";
-        ctx.font = "normal 24px BalooBhaijaan, sans-serif";
-        ctx.fillText("HAMZA", midX - 120, canvas.height * 0.32);
-        ctx.fillText("MARIAM", midX + 120, canvas.height * 0.32);
+        ctx.fillStyle = "#FFF"; ctx.font = "normal 24px BalooBhaijaan, sans-serif";
+        ctx.fillText("HAMZA", midX - 120, canvas.height * 0.32); ctx.fillText("MARIAM", midX + 120, canvas.height * 0.32);
 
-        // --- 2. GAME SELECTION TILES ---
         ctx.fillStyle = this.selectedMode === GameMode.JET_STREAM ? "rgba(255, 193, 7, 0.2)" : "rgba(255, 255, 255, 0.05)";
         ctx.fillRect(midX - 240, canvas.height * 0.44, 220, 95);
         ctx.strokeStyle = this.selectedMode === GameMode.JET_STREAM ? "#FFC107" : "rgba(255,255,255,0.2)";
         ctx.strokeRect(midX - 240, canvas.height * 0.44, 220, 95);
+
+        ctx.fillStyle = "#FFF"; ctx.font = "normal 20px BalooBhaijaan, sans-serif";
+        ctx.fillText("JET STREAM", midX - 130, canvas.height * 0.49);
+        ctx.font = "normal 14px BalooBhaijaan, sans-serif"; ctx.fillText("(Angled Flight Sim)", midX - 130, canvas.height * 0.52);
 
         ctx.fillStyle = this.selectedMode === GameMode.FREE_FLIGHT ? "rgba(255, 193, 7, 0.2)" : "rgba(255, 255, 255, 0.05)";
         ctx.fillRect(midX + 20, canvas.height * 0.44, 220, 95);
         ctx.strokeStyle = this.selectedMode === GameMode.FREE_FLIGHT ? "#FFC107" : "rgba(255,255,255,0.2)";
         ctx.strokeRect(midX + 20, canvas.height * 0.44, 220, 95);
 
-        ctx.fillStyle = "#FFF";
-        ctx.font = "normal 20px BalooBhaijaan, sans-serif";
-        ctx.fillText("JET STREAM", midX - 130, canvas.height * 0.49);
-    //    ctx.font = "normal 14px BalooBhaijaan, sans-serif";
-      //  ctx.fillText("(Angled 35°-45° Flight)", midX - 130, canvas.height * 0.52);
-
-        ctx.fillStyle = "#FFF";
-        ctx.font = "normal 20px BalooBhaijaan, sans-serif";
+        ctx.fillStyle = "#FFF"; ctx.font = "normal 20px BalooBhaijaan, sans-serif";
         ctx.fillText("FREE FLIGHT", midX + 130, canvas.height * 0.49);
-        // ctx.font = "normal 14px BalooBhaijaan, sans-serif";
-      //  ctx.fillText("(Flight)", midX + 130, canvas.height * 0.52);
+        ctx.font = "normal 14px BalooBhaijaan, sans-serif"; ctx.fillText("(Horizontal Flight)", midX + 130, canvas.height * 0.52);
 
-        // --- 3. PREMIUM INTEGRATED ASSET SKINS SHOWCASE ---
         const hY = canvas.height * 0.68;
-        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-        ctx.fillRect(midX - 290, hY, 580, 140);
-        ctx.strokeRect(midX - 290, hY, 580, 140);
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)"; ctx.fillRect(midX - 290, hY, 580, 140); ctx.strokeRect(midX - 290, hY, 580, 140);
 
         this.skinCollection.forEach((skin, idx) => {
             let bx = midX - 270 + (idx * 110);
             let isUnlocked = this.currentLevel >= skin.level;
 
-            ctx.fillStyle = isUnlocked ? "rgba(0, 255, 100, 0.1)" : "rgba(255, 0, 0, 0.1)";
+            if (this.selectedSkinIndex === idx) {
+                ctx.fillStyle = "rgba(255, 215, 0, 0.25)"; ctx.strokeStyle = "#FFD700";
+            } else {
+                ctx.fillStyle = isUnlocked ? "rgba(0, 255, 100, 0.08)" : "rgba(255, 0, 0, 0.08)";
+                ctx.strokeStyle = isUnlocked ? "#00FF66" : "#FF3333";
+            }
             ctx.fillRect(bx, hY + 15, 95, 110);
-            ctx.strokeStyle = isUnlocked ? "#00FF66" : "#FF3333";
+            ctx.lineWidth = this.selectedSkinIndex === idx ? 4 : 2;
             ctx.strokeRect(bx, hY + 15, 95, 110);
+            ctx.lineWidth = 2;
 
             if (skin.img.complete) {
                 ctx.save();
                 if (!isUnlocked) ctx.globalAlpha = 0.25;
-                ctx.drawImage(skin.img, bx + 10, hY + 25, 75, 55);
+                
+                // --- HANGAR MENU ITEM MIRROR RENDERING ---
+                ctx.translate(bx + 47, hY + 52);
+                if (skin.isFlipped) {
+                    ctx.scale(-1, 1);
+                }
+                ctx.drawImage(skin.img, -37, -27, 75, 55);
                 ctx.restore();
             }
 
-            ctx.fillStyle = "#FFF";
-            ctx.font = "normal 12px BalooBhaijaan, sans-serif";
+            ctx.fillStyle = "#FFF"; ctx.font = "normal 12px BalooBhaijaan, sans-serif";
             ctx.fillText(skin.name, bx + 47, hY + 100);
-            if (!isUnlocked) {
-                ctx.fillStyle = "#FF3333";
-                ctx.font = "normal 10px BalooBhaijaan, sans-serif";
-                ctx.fillText(`Lvl ${skin.level} Req`, bx + 47, hY + 114);
+            
+            if (this.selectedSkinIndex === idx) {
+                ctx.fillStyle = "#FFD700"; ctx.font = "normal 10px BalooBhaijaan, sans-serif"; ctx.fillText("READY", bx + 47, hY + 114);
+            } else if (!isUnlocked) {
+                ctx.fillStyle = "#FF3333"; ctx.font = "normal 10px BalooBhaijaan, sans-serif"; ctx.fillText(`Lvl ${skin.level} Req`, bx + 47, hY + 114);
             }
         });
 
-        // EXIT SYSTEM BUTTON LINK
-        ctx.fillStyle = "rgba(255, 50, 50, 0.2)";
-        ctx.fillRect(canvas.width - 130, canvas.height - 50, 110, 40);
-        ctx.strokeStyle = "#FF3333";
-        ctx.strokeRect(canvas.width - 130, canvas.height - 50, 110, 40);
-        ctx.fillStyle = "#FFF";
-        ctx.font = "normal 14px BalooBhaijaan, sans-serif";
-        ctx.fillText("EXIT GAME", canvas.width - 75, canvas.height - 25);
+        ctx.fillStyle = "rgba(255, 50, 50, 0.2)"; ctx.fillRect(canvas.width - 130, canvas.height - 50, 110, 40);
+        ctx.strokeStyle = "#FF3333"; ctx.strokeRect(canvas.width - 130, canvas.height - 50, 110, 40);
+        ctx.fillStyle = "#FFF"; ctx.font = "normal 14px BalooBhaijaan, sans-serif"; ctx.fillText("EXIT GAME", canvas.width - 75, canvas.height - 25);
 
-        ctx.fillStyle = "rgba(255,255,255,0.4)";
-        ctx.font = "normal 12px BalooBhaijaan, sans-serif";
-        ctx.fillText("V22.0 STABLE", 60, canvas.height - 25);
+        ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "normal 12px BalooBhaijaan, sans-serif"; ctx.fillText("V25.0 STABLE", 60, canvas.height - 25);
     }
 
     drawGameplayScreen() {
-        // --- MATHEMATICAL PROGRESSIVE SKY ENGINE MATRICES ---
-        let skyA = this.assets.sky_day;
-        let skyB = this.assets.sky_sunset;
-        let mixWeight = 0;
-
-        // Map colors completely along curriculum indices (0 to 27)
-        if (this.alphabetIndex < 9) { // Day Frame Phase
-            skyA = this.assets.sky_day;
-            skyB = this.assets.sky_sunset;
-            mixWeight = this.alphabetIndex / 9;
-        } else if (this.alphabetIndex < 18) { // Sunset Frame Phase
-            skyA = this.assets.sky_sunset;
-            skyB = this.assets.sky_night;
-            mixWeight = (this.alphabetIndex - 9) / 9;
-        } else if (this.alphabetIndex < 27) { // Midnight Frame Phase
-            skyA = this.assets.sky_night;
-            skyB = this.assets.sky_day; // Prepares morning for loop wrap
-            mixWeight = (this.alphabetIndex - 18) / 9;
-        } else { // Finale Landing Phase
-            skyA = this.assets.sky_day;
-            skyB = this.assets.sky_day;
-            mixWeight = 1.0;
+        let skyA = this.assets.sky_day; let skyB = this.assets.sky_sunset; let mixWeight = 0;
+        if (this.alphabetIndex < 9) {
+            skyA = this.assets.sky_day; skyB = this.assets.sky_sunset; mixWeight = this.alphabetIndex / 9;
+        } else if (this.alphabetIndex < 18) {
+            skyA = this.assets.sky_sunset; skyB = this.assets.sky_night; mixWeight = (this.alphabetIndex - 9) / 9;
+        } else if (this.alphabetIndex < 27) {
+            skyA = this.assets.sky_night; skyB = this.assets.sky_day; mixWeight = (this.alphabetIndex - 18) / 9;
+        } else {
+            skyA = this.assets.sky_day; skyB = this.assets.sky_day; mixWeight = 1.0;
         }
 
-        ctx.save();
-        ctx.globalAlpha = this.skyAlpha;
+        ctx.save(); ctx.globalAlpha = this.skyAlpha;
         if (skyA.complete) ctx.drawImage(skyA, 0, 0, canvas.width, canvas.height);
         ctx.globalAlpha = this.skyAlpha * mixWeight;
         if (skyB.complete) ctx.drawImage(skyB, 0, 0, canvas.width, canvas.height);
         ctx.restore();
 
-        // --- PARALLAX MOVING LAYER CLOUD INJECTIONS ---
         ctx.save();
         this.clouds.forEach(c => {
             ctx.globalAlpha = this.skyAlpha * c.alpha;
             let img = c.type === 1 ? this.assets.clouds_1 : this.assets.clouds_2;
-            let cw = 220 * c.scale;
-            let ch = 130 * c.scale;
+            let cw = 220 * c.scale; let ch = 130 * c.scale;
             if (img.complete) ctx.drawImage(img, c.x, c.y, cw, ch);
         });
         ctx.restore();
 
-        // Takeoff / Landing Sequences Layers
         if (this.airportAlpha > 0 && this.assets.airport.complete) {
-            ctx.save();
-            ctx.globalAlpha = this.airportAlpha;
-            ctx.drawImage(this.assets.airport, 0, 0, canvas.width, canvas.height);
-            ctx.restore();
+            ctx.save(); ctx.globalAlpha = this.airportAlpha; ctx.drawImage(this.assets.airport, 0, 0, canvas.width, canvas.height); ctx.restore();
         }
-
         if (this.runwayAlpha > 0 && this.assets.runway.complete) {
-            ctx.save();
-            ctx.globalAlpha = this.runwayAlpha;
-            let rw = canvas.width * 0.40;
-            ctx.drawImage(this.assets.runway, (canvas.width / 2) - (rw / 2), 0, rw, canvas.height);
-            ctx.restore();
+            ctx.save(); ctx.globalAlpha = this.runwayAlpha; let rw = canvas.width * 0.40; ctx.drawImage(this.assets.runway, (canvas.width / 2) - (rw / 2), 0, rw, canvas.height); ctx.restore();
         }
 
         this.particles.forEach(p => {
-            ctx.save();
-            ctx.globalAlpha = p.alpha;
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
+            ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
         });
 
         if (this.state === GameState.SKY_FLIGHT) {
             this.spawnedLetters.forEach(l => {
                 if (l.collected) return;
-                ctx.save();
-                ctx.fillStyle = "#FFD700";
-                ctx.strokeStyle = "#000000";
-                ctx.lineWidth = 8;
+                ctx.save(); ctx.fillStyle = "#FFD700"; ctx.strokeStyle = "#000000"; ctx.lineWidth = 8;
                 let charFontSize = Math.floor(canvas.width * 0.06);
-                ctx.font = `normal ${charFontSize}px BalooBhaijaan, sans-serif`;
-                ctx.textAlign = "center";
-                ctx.strokeText(l.char, l.x, l.y);
-                ctx.fillText(l.char, l.x, l.y);
-                ctx.restore();
+                ctx.font = `normal ${charFontSize}px BalooBhaijaan, sans-serif`; ctx.textAlign = "center";
+                ctx.strokeText(l.char, l.x, l.y); ctx.fillText(l.char, l.x, l.y); ctx.restore();
             });
         }
 
-        // Dynamic Aircraft Node Positioning transformations
+        // --- ACTIVE FLIGHT FIELD MIRROR & CLIMB RE-ENGINEERING ---
         ctx.save();
         ctx.translate(this.player.x, this.player.y);
-        ctx.rotate(this.player.angle);
+        
+        let activeSkin = this.getSelectedSkin();
+
+        // Canvas Scale coordinates flip logic
+        if (activeSkin.isFlipped) {
+            // Inverting the rotation math allows a left-facing image to climb correctly
+            ctx.rotate(-this.player.angle);
+            ctx.scale(-1, 1); 
+        } else {
+            ctx.rotate(this.player.angle);
+        }
 
         let planeW = canvas.width * 0.16; 
         let planeH = planeW * 0.75;
         
-        let pImg = this.getCurrentSkinImg();
-        if (pImg.complete) {
-            ctx.drawImage(pImg, -planeW / 2, -planeH / 2, planeW, planeH);
+        if (activeSkin.img.complete) {
+            ctx.drawImage(activeSkin.img, -planeW / 2, -planeH / 2, planeW, planeH);
         } else {
-            ctx.fillStyle = "#FF0000";
-            ctx.fillRect(-50, -35, 100, 70);
+            ctx.fillStyle = "#FF0000"; ctx.fillRect(-50, -35, 100, 70);
         }
         ctx.restore();
 
         this.bursts.forEach(b => {
-            ctx.save();
-            ctx.globalAlpha = b.alpha;
-            ctx.strokeStyle = "#00FFFF";
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.restore();
+            ctx.save(); ctx.globalAlpha = b.alpha; ctx.strokeStyle = "#00FFFF"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
         });
 
         this.drawHUD();
     }
 
     drawHUD() {
-        ctx.save();
-        ctx.fillStyle = "#00FFCC";
-        ctx.font = "normal 28px BalooBhaijaan, sans-serif";
-        ctx.textAlign = "left";
+        ctx.save(); ctx.fillStyle = "#00FFCC"; ctx.font = "normal 28px BalooBhaijaan, sans-serif"; ctx.textAlign = "left";
         ctx.fillText(`SCORE: ${this.score}`, 40, 60);
-        ctx.fillStyle = "#FFF";
-        ctx.font = "normal 20px BalooBhaijaan, sans-serif";
-        ctx.fillText(`PILOT: ${this.currentProfile}`, 40, 95);
-        ctx.restore();
+        ctx.fillStyle = "#FFF"; ctx.font = "normal 20px BalooBhaijaan, sans-serif"; ctx.fillText(`PILOT: ${this.currentProfile}`, 40, 95); ctx.restore();
 
-        // Target Pill Backings
         if (this.state === GameState.SKY_FLIGHT) {
-            const rx = canvas.width - 200;
-            const ry = 30;
-            const rw = 150;
-            const rh = 100;
-
-            ctx.save();
-            ctx.fillStyle = "rgba(13, 25, 47, 0.85)";
-            ctx.fillRect(rx, ry, rw, rh);
-            ctx.strokeStyle = "#00E5FF";
-            ctx.lineWidth = 3;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "#00E5FF";
-            ctx.strokeRect(rx, ry, rw, rh);
-
-            ctx.shadowBlur = 0; 
-            ctx.fillStyle = "#00E5FF";
-            ctx.font = "normal 14px BalooBhaijaan, sans-serif";
-            ctx.textAlign = "center";
+            const rx = canvas.width - 200; const ry = 30; const rw = 150; const rh = 100;
+            ctx.save(); ctx.fillStyle = "rgba(13, 25, 47, 0.85)"; ctx.fillRect(rx, ry, rw, rh);
+            ctx.strokeStyle = "#00E5FF"; ctx.lineWidth = 3; ctx.shadowBlur = 15; ctx.shadowColor = "#00E5FF"; ctx.strokeRect(rx, ry, rw, rh);
+            ctx.shadowBlur = 0; ctx.fillStyle = "#00E5FF"; ctx.font = "normal 14px BalooBhaijaan, sans-serif"; ctx.textAlign = "center";
             ctx.fillText("TARGET", rx + (rw / 2), ry + 25);
-
-            ctx.fillStyle = "#FFD700";
-            ctx.font = "normal 48px BalooBhaijaan, sans-serif";
-            ctx.fillText(this.targetLetter, rx + (rw / 2), ry + 82);
-            ctx.restore();
+            ctx.fillStyle = "#FFD700"; ctx.font = "normal 48px BalooBhaijaan, sans-serif"; ctx.fillText(this.targetLetter, rx + (rw / 2), ry + 82); ctx.restore();
         }
 
         if (this.state === GameState.VICTORY_SCREEN) {
-            ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            this.confetti.forEach(c => {
-                ctx.fillStyle = c.color;
-                ctx.fillRect(c.x, c.y, c.size, c.size);
-            });
-
-            ctx.fillStyle = "#FFD700";
-            ctx.font = "normal 64px BalooBhaijaan, sans-serif";
-            ctx.textAlign = "center";
+            ctx.fillStyle = "rgba(0, 0, 0, 0.75)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            this.confetti.forEach(c => { ctx.fillStyle = c.color; ctx.fillRect(c.x, c.y, c.size, c.size); });
+            ctx.fillStyle = "#FFD700"; ctx.font = "normal 64px BalooBhaijaan, sans-serif"; ctx.textAlign = "center";
             ctx.fillText("FLIGHT COMPLETE!", canvas.width / 2, canvas.height * 0.45);
-            
-            ctx.fillStyle = "#FFF";
-            ctx.font = "normal 24px BalooBhaijaan, sans-serif";
-            ctx.fillText("Amazing Flying! Tap Screen or Enter to Play Again", canvas.width / 2, canvas.height * 0.55);
+            ctx.fillStyle = "#FFF"; ctx.font = "normal 24px BalooBhaijaan, sans-serif"; ctx.fillText("Amazing Flying! Tap Screen or Enter to Play Again", canvas.width / 2, canvas.height * 0.55);
         }
     }
 }
 
 const gameInstance = new AeroAlphaGame();
 function engineHeartbeatLoop() {
-    gameInstance.update();
-    gameInstance.draw();
+    gameInstance.update(); gameInstance.draw();
     requestAnimationFrame(engineHeartbeatLoop);
 }
 requestAnimationFrame(engineHeartbeatLoop);
