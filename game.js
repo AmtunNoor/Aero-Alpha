@@ -1,10 +1,5 @@
-/**
- * AERO-ALPHA 
- * Version: V21.2 STABLE (Pre-V21 Architecture)
- * Orientation: Vertical 
- */
+/* Created this Aero Alpha Game for Mariam & Hamza ; June 2026 */
 
-// --- 1. ENGINE INITIALIZATION & CANVAS SETUP ---
 const canvas = document.getElementById("gameCanvas") || document.createElement("canvas");
 if (!canvas.parentNode && document.body) {
     canvas.id = "gameCanvas";
@@ -19,96 +14,56 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-const GameState = {
-    MENU: "MENU",
-    AIRPORT: "AIRPORT",
-    SKY: "SKY",
-    HANGAR: "HANGAR"
-};
+const GameState = { MENU: "MENU", AIRPORT: "AIRPORT", SKY: "SKY" };
+const GameMode = { RUNNER: "RUNNER", FREE_FLIGHT: "FREE_FLIGHT" };
+const Profile = { TODDLER: "HAMZA", JUNIOR: "MARIAM" }; // Toddler vs 5yr Old
 
-const GameMode = {
-    RUNNER: "RUNNER",
-    FREE_FLIGHT: "FREE_FLIGHT"
-};
-
-// Precise dictionary mapping Arabic letters directly to their real filenames in assets/sound/letters/
 const ARABIC_ALPHABET_DATA = [
     { char: "ا", file: "alif.mp3" }, { char: "ب", file: "ba.mp3" }, { char: "ت", file: "ta.mp3" }, 
-    { char: "ث", file: "thaa.mp3" }, { char: "ج", file: "jeem.mp3" }, { char: "ح", file: "haa.mp3" }, 
+    { char: "ث", file: "thaa.mp3" }, { char: "ج", file: "jeem.mp3" }, { char: "ح", file: "ha.mp3" }, 
     { char: "خ", file: "kha.mp3" }, { char: "د", file: "daal.mp3" }, { char: "ذ", file: "zaal.mp3" }, 
     { char: "ر", file: "raa.mp3" }, { char: "ز", file: "zaa.mp3" }, { char: "س", file: "seen.mp3" }, 
     { char: "ش", file: "sheen.mp3" }, { char: "ص", file: "saad.mp3" }, { char: "ض", file: "dad.mp3" }, 
     { char: "ط", file: "toa.mp3" }, { char: "ظ", file: "zoa.mp3" }, { char: "ع", file: "ain.mp3" }, 
     { char: "غ", file: "ghain.mp3" }, { char: "ف", file: "fa.mp3" }, { char: "ق", file: "qaaf.mp3" }, 
     { char: "ك", file: "kaf.mp3" }, { char: "ل", file: "laam.mp3" }, { char: "م", file: "meem.mp3" }, 
-    { char: "ن", file: "noon.mp3" }, { char: "ه", file: "ha.mp3" }, { char: "و", file: "waw.mp3" }, 
+    { char: "ن", file: "noon.mp3" }, { char: "ه", file: "haa.mp3" }, { char: "و", file: "waw.mp3" }, 
     { char: "ي", file: "yaa.mp3" }
 ];
 
-// --- 2. SOUND CONTROLLER (ZERO CACHE ERRORS) ---
 const audioCache = {};
-let activeEngineSound = null;
-let activeWindSound = null;
-
 function playLetterAudio(letterChar) {
     const data = ARABIC_ALPHABET_DATA.find(item => item.char === letterChar);
     if (!data) return;
-    
     const audioSrc = `assets/sound/letters/${data.file}`;
-    if (!audioCache[audioSrc]) {
-        audioCache[audioSrc] = new Audio(audioSrc);
-    }
+    if (!audioCache[audioSrc]) audioCache[audioSrc] = new Audio(audioSrc);
     audioCache[audioSrc].currentTime = 0; 
-    audioCache[audioSrc].play().catch(err => console.log("Interaction required for audio play: ", err));
+    audioCache[audioSrc].play().catch(() => {});
 }
 
-function loopBackgroundAmbience() {
-    if (!activeEngineSound) {
-        activeEngineSound = new Audio("assets/sound/engine.mp3");
-        activeEngineSound.loop = true;
-        activeEngineSound.volume = 0.25;
-    }
-    if (!activeWindSound) {
-        activeWindSound = new Audio("assets/sound/wind.mp3");
-        activeWindSound.loop = true;
-        activeWindSound.volume = 0.20;
-    }
-    activeEngineSound.play().catch(() => {});
-    activeWindSound.play().catch(() => {});
-}
-
-// --- 3. CORE GAME ENGINE ---
 class AeroAlphaGame {
     constructor() {
         this.state = GameState.MENU;
         this.selectedMode = GameMode.RUNNER;
-        
+        this.currentProfile = Profile.TODDLER; // Safety Default
+        this.menuViewIndex = 0; 
         this.score = 0;
         this.currentLevel = 1;
+        this.highestLevelReached = 1;
         this.speedMultiplier = 1.0;
-        this.consecutiveMistakes = 0;
-        this.cameraShakeTimer = 0;
-
-        // Environment Progression Setup
+        
         this.envTimer = 0;
-        this.envCycleDuration = 1200; 
-        this.currentAirportIndex = 1;
-        this.starsCollected = 0;
+        this.airportPhaseTimer = 0;
+        this.airportMaxDuration = 180;
 
-        // Core Layout Arrays
-        this.targetLetter = "";
-        this.spawnedLetters = [];
+        this.isBoosting = false;
+        this.boostTimer = 0;
+        this.particles = [];
+        this.bursts = [];
 
-        // Exact Repository Asset Definitions Only
         this.assets = {
-            background_menu: new Image(),
-            airport: new Image(),
-            runway: new Image(),
-            sky_day: new Image(),
-            sky_sunset: new Image(),
-            sky_night: new Image(),
-            clouds_1: new Image(),
-            clouds_2: new Image(),
+            background_menu: new Image(), airport: new Image(), runway: new Image(),
+            sky_day: new Image(), sky_sunset: new Image(), sky_night: new Image(),
             planeImg: new Image()
         };
 
@@ -118,112 +73,100 @@ class AeroAlphaGame {
         this.assets.sky_day.src = "assets/images/sky_day.webp";
         this.assets.sky_sunset.src = "assets/images/sky_sunset.webp";
         this.assets.sky_night.src = "assets/images/sky_night.webp";
-        this.assets.clouds_1.src = "assets/images/clouds_1.png";
-        this.assets.clouds_2.src = "assets/images/clouds_2.png";
         
-        // Dynamic Skin Array mapping exclusively to level states
-        this.levelSkins = [
-            "plane_trainer.png", // Level 1 Default
-            "plane_falcon.png",  // Level 2
-            "plane_glider.png",  // Level 3
-            "plane_gold.png",    // Level 4
-            "plane_legend.png"   // Level 5+
+        this.levelSkinMapping = [
+            { level: 1, file: "plane_trainer.png" },
+            { level: 3, file: "plane_falcon.png" },
+            { level: 5, file: "plane_glider.png" },
+            { level: 7, file: "plane_gold.png" },
+            { level: 9, file: "plane_legend.png" }
         ];
 
+        this.player = { x: canvas.width / 2, y: canvas.height * 0.75, width: 120, height: 90, targetX: canvas.width / 2, targetY: canvas.height * 0.75 };
+        
         this.updatePlaneSkin();
-
-        // Background illusion speeds and anchors
-        this.airportY = 0;
-        this.runwayY = 0;
-        this.cloud1Y = -150;
-        this.cloud2Y = -450;
-
-        // Player Plane Layout Metrics - Fixed Vertically Facing Forward Near the Bottom Base
-        this.player = {
-            x: canvas.width / 2,
-            y: canvas.height * 0.75,
-            width: 125,
-            height: 95,
-            targetX: canvas.width / 2,
-            targetY: canvas.height * 0.75,
-            bankAngle: 0,
-            hoverOffset: 0,
-            hoverDir: 1
-        };
-
         this.initControls();
         this.generateNewTarget();
     }
 
-    // Dynamic Level Skin Switching Module
     updatePlaneSkin() {
-        // Enforces systematic skin shifts based on level progression thresholds
-        let skinIndex = Math.min(this.currentLevel - 1, this.levelSkins.length - 1);
-        let selectedSkinFile = this.levelSkins[skinIndex];
-        this.assets.planeImg.src = `assets/images/${selectedSkinFile}`;
+        let equipped = "plane_trainer.png";
+        for (let skin of this.levelSkinMapping) {
+            if (this.currentLevel >= skin.level) equipped = skin.file;
+        }
+        this.assets.planeImg.src = `assets/images/${equipped}`;
     }
 
-    // --- 4. INPUT MAPPING (TV & MOBILE COEXISTENCE) ---
+    requestNativeFullScreen() {
+        const el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }
+
     initControls() {
-        // Keyboard & Android TV D-Pad Handlers
+        // Shared Keyboard Handler (TV Navigation compatibility)
         window.addEventListener("keydown", (e) => {
             if (this.state === GameState.MENU) {
                 if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
                     this.selectedMode = this.selectedMode === GameMode.RUNNER ? GameMode.FREE_FLIGHT : GameMode.RUNNER;
                 }
+                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                    this.currentProfile = this.currentProfile === Profile.TODDLER ? Profile.JUNIOR : Profile.TODDLER;
+                }
                 if (e.key === "Enter" || e.key === " ") {
+                    this.requestNativeFullScreen();
                     this.startGame(this.selectedMode);
                 }
                 return;
             }
-
-            const step = 65;
-            switch (e.key) {
-                case "ArrowLeft":
-                    this.player.targetX = Math.max(60, this.player.targetX - step);
-                    break;
-                case "ArrowRight":
-                    this.player.targetX = Math.min(canvas.width - 60, this.player.targetX + step);
-                    break;
-                case "ArrowUp":
-                    this.player.targetY = Math.max(canvas.height * 0.35, this.player.targetY - step);
-                    break;
-                case "ArrowDown":
-                    this.player.targetY = Math.min(canvas.height - 90, this.player.targetY + step);
-                    break;
+            
+            // In-Game step movements
+            let step = this.currentProfile === Profile.TODDLER ? 120 : 70; // Toddlers move in bigger increments to avoid straining finger tracking
+            if (e.key === "ArrowLeft") this.player.targetX = Math.max(60, this.player.targetX - step);
+            if (e.key === "ArrowRight") this.player.targetX = Math.min(canvas.width - 60, this.player.targetX + step);
+            if (e.key === " ") {
+                this.isBoosting = true;
+                this.boostTimer = 45;
             }
         });
 
-        // Mobile Controls: Absolute direct single touch drag manipulation
+        // Mobile / Tablet Fluid Touch Targeting
         canvas.addEventListener("touchmove", (e) => {
             if (this.state === GameState.MENU) return;
             e.preventDefault();
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
             this.player.targetX = touch.clientX - rect.left;
-            this.player.targetY = Math.max(canvas.height * 0.35, touch.clientY - rect.top);
         }, { passive: false });
 
+        // Menu Selections & Single Taps
         canvas.addEventListener("click", (e) => {
             const rect = canvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const clickY = e.clientY - rect.top;
+            const midX = canvas.width / 2;
 
             if (this.state === GameState.MENU) {
-                // Interactive Click Bounds for Transparent Menu Mode Tiles
-                const tileW = 180;
-                const tileH = 100;
-                const runnerX = canvas.width / 2 - 200;
-                const freeX = canvas.width / 2 + 20;
-                const tileY = canvas.height * 0.55;
-
-                if (clickY > tileY && clickY < tileY + tileH) {
-                    if (clickX > runnerX && clickX < runnerX + tileW) {
+                // Check Profile selection clicks
+                if (clickY > canvas.height * 0.35 && clickY < canvas.height * 0.43) {
+                    if (clickX > midX - 180 && clickX < midX - 10) this.currentProfile = Profile.TODDLER;
+                    if (clickX > midX + 10 && clickX < midX + 180) this.currentProfile = Profile.JUNIOR;
+                }
+                
+                // Check Mode Selection Boxes and Launch
+                if (clickY > canvas.height * 0.50 && clickY < canvas.height * 0.62) {
+                    if (clickX > midX - 210 && clickX < midX - 20) {
+                        this.selectedMode = GameMode.RUNNER;
+                        this.requestNativeFullScreen();
                         this.startGame(GameMode.RUNNER);
-                    } else if (clickX > freeX && clickX < freeX + tileW) {
+                    } else if (clickX > midX + 20 && clickX < midX + 210) {
+                        this.selectedMode = GameMode.FREE_FLIGHT;
+                        this.requestNativeFullScreen();
                         this.startGame(GameMode.FREE_FLIGHT);
                     }
                 }
+            } else {
+                this.player.targetX = clickX;
             }
         });
     }
@@ -231,355 +174,209 @@ class AeroAlphaGame {
     startGame(mode) {
         this.selectedMode = mode;
         this.state = GameState.AIRPORT;
-        
-        this.airportY = 0;
-        this.runwayY = 0;
         this.score = 0;
         this.currentLevel = 1;
-        this.speedMultiplier = 1.0;
-        this.consecutiveMistakes = 0;
+        this.airportPhaseTimer = 0;
         
-        this.player.x = canvas.width / 2;
-        this.player.y = canvas.height * 0.75;
-        this.player.targetX = this.player.x;
-        this.player.targetY = this.player.y;
-        
-        this.updatePlaneSkin();
-        loopBackgroundAmbience();
+        // Dynamic Profile-specific baseline mechanics
+        if (this.currentProfile === Profile.TODDLER) {
+            this.speedMultiplier = 0.5; // Very slow drop rate so they can see and register letters
+        } else {
+            this.speedMultiplier = 1.0; // Standard 5 year old baseline challenge
+        }
+
         this.generateNewTarget();
     }
 
-    // --- 5. DATA CURRICULUM SPAWNER ---
     generateNewTarget() {
-        let activeSlice = ARABIC_ALPHABET_DATA;
-        
-        // In Runner Mode curriculum is progressively split by score thresholds
-        if (this.selectedMode === GameMode.RUNNER) {
-            if (this.currentAirportIndex === 1) activeSlice = ARABIC_ALPHABET_DATA.slice(0, 10);
-            else if (this.currentAirportIndex === 2) activeSlice = ARABIC_ALPHABET_DATA.slice(0, 20);
-        }
-
-        const randIdx = Math.floor(Math.random() * activeSlice.length);
-        this.targetLetter = activeSlice[randIdx].char;
+        const randIdx = Math.floor(Math.random() * ARABIC_ALPHABET_DATA.length);
+        this.targetLetter = ARABIC_ALPHABET_DATA[randIdx].char;
         this.spawnedLetters = [];
-
-        // Exact spawn parameters: 1 minimum, 2 maximum target instances
-        const targetCount = Math.floor(Math.random() * 2) + 1;
-        const totalCount = Math.floor(Math.random() * 3) + 5; // Restricted between 5-7 max objects on screen
-
-        for (let i = 0; i < targetCount; i++) {
-            this.spawnedLetters.push({ char: this.targetLetter, x: 0, y: 0, radius: 45, collected: false });
-        }
-
-        while (this.spawnedLetters.length < totalCount) {
-            let filler = ARABIC_ALPHABET_DATA[Math.floor(Math.random() * ARABIC_ALPHABET_DATA.length)].char;
-            if (filler !== this.targetLetter) {
-                this.spawnedLetters.push({ char: filler, x: 0, y: 0, radius: 45, collected: false });
-            }
-        }
-
-        this.spawnedLetters.sort(() => Math.random() - 0.5);
         
-        const laneWidth = canvas.width / this.spawnedLetters.length;
-        this.spawnedLetters.forEach((letter, index) => {
-            letter.x = (laneWidth * index) + (laneWidth / 2);
-            letter.y = -Math.random() * 500 - 120; // Stagger behind upper viewport limit
-        });
+        // Fewer columns (3) for Toddlers to reduce clutter, 5 columns for 5-Year Olds
+        const totalColumns = this.currentProfile === Profile.TODDLER ? 3 : 5;
+        
+        for (let i = 0; i < totalColumns; i++) {
+            let char = i === 0 ? this.targetLetter : ARABIC_ALPHABET_DATA[Math.floor(Math.random() * ARABIC_ALPHABET_DATA.length)].char;
+            this.spawnedLetters.push({ 
+                char, 
+                x: (canvas.width / totalColumns) * i + (canvas.width / (totalColumns * 2)), 
+                y: -Math.random() * 400 - 100, 
+                collected: false 
+            });
+        }
+        // Shuffle columns array so target letter isn't always sitting on left column
+        this.spawnedLetters.sort(() => Math.random() - 0.5);
     }
 
-    // --- 6. TICK MECHANICS & SYSTEM PROCESSING ---
     update() {
         if (this.state === GameState.MENU) return;
-
-        this.envTimer = (this.envTimer + 1) % (this.envCycleDuration * 3);
-        if (this.cameraShakeTimer > 0) this.cameraShakeTimer--;
-
-        // Easing interpolation: coordinates catch up smoothly
-        const dx = this.player.targetX - this.player.x;
-        const dy = this.player.targetY - this.player.y;
-        this.player.x += dx * 0.12;
-        this.player.y += dy * 0.12;
-        this.player.bankAngle = dx * 0.005; 
-
-        // Gentle premium hovering cycle simulation
-        this.player.hoverOffset += 0.05 * this.player.hoverDir;
-        if (Math.abs(this.player.hoverOffset) > 6) this.player.hoverDir *= -1;
-
-        // Progression Transitions: The letters and runway slide downward to simulate vertical velocity
-        let scrollSpeed = 7 * this.speedMultiplier;
-        if (this.selectedMode === GameMode.FREE_FLIGHT) scrollSpeed = 5; // Static relaxed speed for free flight
-
-        if (this.state === GameState.AIRPORT) {
-            this.airportY += scrollSpeed;
-            this.runwayY += scrollSpeed;
-            if (this.airportY > canvas.height) {
-                this.state = GameState.SKY;
-            }
+        this.envTimer++;
+        
+        // Distinct baseline calculations for profiles
+        let baseSpeed = this.selectedMode === GameMode.RUNNER ? 7 : 5;
+        let speed = baseSpeed * this.speedMultiplier;
+        
+        if (this.isBoosting) {
+            speed *= 1.6;
+            this.boostTimer--;
+            if (this.boostTimer <= 0) this.isBoosting = false;
+            this.particles.push({ x: this.player.x, y: this.player.y + 40, alpha: 1, color: this.selectedMode === GameMode.RUNNER ? "#FFD700" : "#00FFFF" });
         }
 
-        this.cloud1Y += scrollSpeed * 0.35;
-        this.cloud2Y += scrollSpeed * 0.55;
-        if (this.cloud1Y > canvas.height) this.cloud1Y = -200;
-        if (this.cloud2Y > canvas.height) this.cloud2Y = -400;
+        if (this.state === GameState.AIRPORT) {
+            this.airportPhaseTimer++;
+            if (this.airportPhaseTimer > this.airportMaxDuration + 60) this.state = GameState.SKY;
+        }
 
-        let targetStillExists = false;
+        // Toddlers get super-assisted "magnetic fluid snapping" to letters, 5-Year Olds get standard control tracking weight
+        let trackingInterpolation = this.currentProfile === Profile.TODDLER ? 0.25 : 0.12;
+        this.player.x += (this.player.targetX - this.player.x) * trackingInterpolation;
+        
+        // Strict boundary padding
+        this.player.x = Math.max(60, Math.min(canvas.width - 60, this.player.x));
 
-        this.spawnedLetters.forEach(letter => {
-            letter.y += scrollSpeed;
-
-            if (letter.char === this.targetLetter && !letter.collected) {
-                targetStillExists = true;
-            }
-
-            if (!letter.collected) {
-                const px = this.player.x;
-                const py = this.player.y + this.player.hoverOffset;
-                const distance = Math.hypot(letter.x - px, letter.y - py);
-
-                if (distance < letter.radius + 35) {
-                    letter.collected = true;
-                    this.handleCollision(letter.char);
+        this.spawnedLetters.forEach(l => {
+            l.y += speed;
+            
+            // Hit check collision radial distance evaluation
+            if (!l.collected && Math.hypot(l.x - this.player.x, l.y - this.player.y) < 75) {
+                l.collected = true;
+                if (l.char === this.targetLetter) {
+                    playLetterAudio(l.char);
+                    this.score += 10;
+                    this.bursts.push({ x: l.x, y: l.y, radius: 10, alpha: 1 });
+                    
+                    this.currentLevel = Math.floor(this.score / 50) + 1;
+                    if (this.currentLevel > this.highestLevelReached) this.highestLevelReached = this.currentLevel;
+                    
+                    // Progressive speed updates (Only applied if they are on the 5-Year Old Junior tier)
+                    if (this.currentProfile === Profile.JUNIOR) {
+                        this.speedMultiplier = 1.0 + (this.currentLevel * 0.08);
+                    }
+                    
+                    this.updatePlaneSkin();
+                    this.generateNewTarget();
                 }
             }
         });
 
-        const allPassed = this.spawnedLetters.every(l => l.y > canvas.height || l.collected);
-        if (!targetStillExists || allPassed) {
-            this.generateNewTarget();
+        // Recycling loops if missed
+        if (this.spawnedLetters.every(l => l.y > canvas.height || l.collected)) {
+            this.spawnedLetters.forEach(l => { 
+                l.y = -Math.random() * 400 - 100; 
+                l.collected = false; 
+            });
         }
+
+        this.particles.forEach((p, i) => { p.y += 4; p.alpha -= 0.02; if (p.alpha <= 0) this.particles.splice(i, 1); });
+        this.bursts.forEach((b, i) => { b.radius += 5; b.alpha -= 0.04; if (b.alpha <= 0) this.bursts.splice(i, 1); });
     }
 
-    handleCollision(character) {
-        if (character === this.targetLetter) {
-            playLetterAudio(character);
-            this.score += 10;
-            this.starsCollected += 1;
-            this.consecutiveMistakes = 0;
-
-            if (this.selectedMode === GameMode.RUNNER) {
-                // Progression increments occur explicitly on accurate selection events
-                this.currentLevel++;
-                this.speedMultiplier = 1.0 + (this.currentLevel * 0.06);
-                this.updatePlaneSkin(); // Skin shifts right away on level change thresholds
-
-                if (this.score >= 100 && this.currentAirportIndex === 1) {
-                    this.currentAirportIndex = 2;
-                } else if (this.score >= 200 && this.currentAirportIndex === 2) {
-                    this.currentAirportIndex = 3;
-                }
-            }
-
-            this.generateNewTarget();
-        } else {
-            this.consecutiveMistakes++;
-            if (this.consecutiveMistakes >= 5) {
-                this.cameraShakeTimer = 15; // Soft vibration feedback after consecutive misses
-            }
-        }
-    }
-
-    // --- 7. RENDERING SYSTEM ---
     draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        ctx.save();
-        if (this.cameraShakeTimer > 0) {
-            ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
-        }
-
-        if (this.state === GameState.MENU) {
-            this.drawMenu();
-        } else {
-            this.drawGameplayScreen();
-        }
-
-        ctx.restore();
+        if (this.state === GameState.MENU) this.drawMenu();
+        else this.drawGame();
     }
 
     drawMenu() {
-        if (this.assets.background_menu.complete && this.assets.background_menu.src) {
-            ctx.drawImage(this.assets.background_menu, 0, 0, canvas.width, canvas.height);
-        } else {
-            ctx.fillStyle = "#0a1118";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font = "bold 54px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("AERO-ALPHA", canvas.width / 2, canvas.height * 0.32);
-
-        // Core Layout Panel Constraints
-        const tileW = 180;
-        const tileH = 100;
-        const runnerX = canvas.width / 2 - 200;
-        const freeX = canvas.width / 2 + 20;
-        const tileY = canvas.height * 0.55;
-
-        // Render Runner Mode Transparent Tile Panel
-        ctx.fillStyle = this.selectedMode === GameMode.RUNNER ? "rgba(46, 204, 113, 0.45)" : "rgba(255, 255, 255, 0.15)";
-        ctx.fillRect(runnerX, tileY, tileW, tileH);
-        ctx.strokeStyle = this.selectedMode === GameMode.RUNNER ? "#2ecc71" : "rgba(255, 255, 255, 0.4)";
-        ctx.lineWidth = 3;
-        ctx.strokeRect(runnerX, tileY, tileW, tileH);
+        ctx.drawImage(this.assets.background_menu, 0, 0, canvas.width, canvas.height);
+        const midX = canvas.width / 2;
         
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font = "bold 20px Arial";
-        ctx.fillText("Runner Mode", runnerX + tileW / 2, tileY + tileH / 2 + 7);
-
-        // Render Free Flight Transparent Tile Panel
-        ctx.fillStyle = this.selectedMode === GameMode.FREE_FLIGHT ? "rgba(46, 204, 113, 0.45)" : "rgba(255, 255, 255, 0.15)";
-        ctx.fillRect(freeX, tileY, tileW, tileH);
-        ctx.strokeStyle = this.selectedMode === GameMode.FREE_FLIGHT ? "#2ecc71" : "rgba(255, 255, 255, 0.4)";
-        ctx.strokeRect(freeX, tileY, tileW, tileH);
-
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillText("Free Flight", freeX + tileW / 2, tileY + tileH / 2 + 7);
-
-        this.drawVersionInfo();
-    }
-
-    drawGameplayScreen() {
-        const cyclePhase = this.envTimer / this.envCycleDuration;
-        let activeSkyImage = this.assets.sky_day;
-
-        if (cyclePhase >= 1 && cyclePhase < 2) activeSkyImage = this.assets.sky_sunset;
-        else if (cyclePhase >= 2) activeSkyImage = this.assets.sky_night;
-
-        if (activeSkyImage.complete && activeSkyImage.src) {
-            ctx.drawImage(activeSkyImage, 0, 0, canvas.width, canvas.height);
+        // --- 1. AGE INTERFACE CONFIG SELECTORS ---
+        ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+        ctx.fillRect(midX - 190, canvas.height * 0.34, 180, 50);
+        ctx.fillRect(midX + 10, canvas.height * 0.34, 180, 50);
+        
+        // Highlighting Selected Profile Border Frame
+        ctx.strokeStyle = "#00FF66";
+        ctx.lineWidth = 4;
+        if (this.currentProfile === Profile.TODDLER) {
+            ctx.strokeRect(midX - 190, canvas.height * 0.34, 180, 50);
         } else {
-            ctx.fillStyle = "#2980b9";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeRect(midX + 10, canvas.height * 0.34, 180, 50);
         }
 
-        // Airport Takeoff Phase Block
-        if (this.state === GameState.AIRPORT) {
-            if (this.assets.airport.complete && this.assets.airport.src) {
-                ctx.drawImage(this.assets.airport, 0, this.airportY, canvas.width, canvas.height);
-            }
-            if (this.assets.runway.complete && this.assets.runway.src) {
-                const widthOfRunway = canvas.width * 0.45;
-                ctx.drawImage(this.assets.runway, canvas.width / 2 - widthOfRunway / 2, this.runwayY, widthOfRunway, canvas.height);
-            }
-        }
+        ctx.fillStyle = "#FFF";
+        ctx.font = "bold 18px Arial";
+        ctx.fillText("HAMZA", midX - 130, canvas.height * 0.37);
+        ctx.fillText("MARIAM", midX + 65, canvas.height * 0.37);
 
-        // Integrated Cloud Layer Rendering
-        if (this.assets.clouds_1.complete && this.assets.clouds_1.src) {
-            ctx.drawImage(this.assets.clouds_1, 50, this.cloud1Y, 140, 85);
-        }
-        if (this.assets.clouds_2.complete && this.assets.clouds_2.src) {
-            ctx.drawImage(this.assets.clouds_2, canvas.width - 210, this.cloud2Y, 170, 95);
-        }
+        // --- 2. GAME SELECTION TILES ---
+        ctx.fillStyle = this.selectedMode === GameMode.RUNNER ? "rgba(0, 255, 255, 0.35)" : "rgba(255, 255, 255, 0.1)";
+        ctx.fillRect(midX - 210, canvas.height * 0.48, 190, 90);
+        
+        ctx.fillStyle = this.selectedMode === GameMode.FREE_FLIGHT ? "rgba(0, 255, 255, 0.35)" : "rgba(255, 255, 255, 0.1)";
+        ctx.fillRect(midX + 20, canvas.height * 0.48, 190, 90);
+        
+        ctx.fillStyle = "#FFF";
+        ctx.font = "bold 22px Arial";
+        ctx.fillText("JET STREAM", midX - 185, canvas.height * 0.52);
+        ctx.font = "14px Arial";
+        ctx.fillText("(Vertical Plane)", midX - 145, canvas.height * 0.55);
 
-        this.drawLetters();
-        this.drawPlayerPlane();
-        this.drawHUD();
-    }
+        ctx.fillStyle = "#FFF";
+        ctx.font = "bold 22px Arial";
+        ctx.fillText("FREE FLIGHT", midX + 45, canvas.height * 0.52);
+        ctx.font = "14px Arial";
+        ctx.fillText("(Horizontal Plane)", midX + 55, canvas.height * 0.55);
 
-    drawLetters() {
-        this.spawnedLetters.forEach(letter => {
-            if (letter.collected) return;
-
-            ctx.save();
-            ctx.translate(letter.x, letter.y);
-
-            ctx.font = "bold 76px Arial";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-
-            ctx.strokeStyle = "#000000";
-            ctx.lineWidth = 11;
-            ctx.strokeText(letter.char, 0, 0);
-
-            ctx.fillStyle = "#FFD700"; 
-            ctx.fillText(letter.char, 0, 0);
-
-            ctx.restore();
+        // --- 3. UNLOCKED VEHICLES ROW ---
+        this.levelSkinMapping.forEach((s, i) => {
+            ctx.fillStyle = this.highestLevelReached >= s.level ? "rgba(0, 255, 0, 0.3)" : "rgba(255, 0, 0, 0.25)";
+            ctx.fillRect(midX - 200 + (i * 85), canvas.height * 0.72, 75, 75);
         });
     }
 
-    drawPlayerPlane() {
-        ctx.save();
-        const renderY = this.player.y + this.player.hoverOffset;
-        ctx.translate(this.player.x, renderY);
-        ctx.rotate(this.player.bankAngle); 
+    drawGame() {
+        ctx.drawImage(this.assets.sky_day, 0, 0, canvas.width, canvas.height);
 
-        // Enforces full vertical orientation running upwards toward the horizon
-        if (this.assets.planeImg.complete && this.assets.planeImg.src) {
-            ctx.drawImage(
-                this.assets.planeImg,
-                -this.player.width / 2,
-                -this.player.height / 2,
-                this.player.width,
-                this.player.height
-            );
-        } else {
-            ctx.fillStyle = "#c0392b";
-            ctx.beginPath();
-            ctx.moveTo(0, -this.player.height / 2);
-            ctx.lineTo(this.player.width / 2, this.player.height / 2);
-            ctx.lineTo(-this.player.width / 2, this.player.height / 2);
-            ctx.closePath();
-            ctx.fill();
+        if (this.state === GameState.AIRPORT) {
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, 1 - (this.airportPhaseTimer - this.airportMaxDuration) / 60);
+            ctx.drawImage(this.assets.airport, 0, 0, canvas.width, canvas.height);
+            ctx.drawImage(this.assets.runway, canvas.width / 2 - 200, 0, 400, canvas.height);
+            ctx.restore();
         }
 
-        ctx.restore();
-    }
-
-    drawHUD() {
-        // Upper Target Interface Overlay Layout panel
-        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-        ctx.fillRect(canvas.width - 150, 25, 125, 95);
-
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font = "bold 13px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("TARGET", canvas.width - 87, 48);
-
-        ctx.fillStyle = "#FFD700";
-        ctx.font = "bold 44px Arial";
-        ctx.fillText(this.targetLetter, canvas.width - 87, 94);
-
-        // Left Margin HUD Readouts
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font = "bold 20px Arial";
-        ctx.textAlign = "left";
-        ctx.fillText(`SCORE: ${this.score}`, 25, 45);
+        // --- THEME ENGINE ORIENTATION SHIFTER ---
+        ctx.save();
+        ctx.translate(this.player.x, this.player.y);
         
         if (this.selectedMode === GameMode.RUNNER) {
-            ctx.fillText(`LVL: ${this.currentLevel}`, 25, 75);
-            ctx.font = "13px Arial";
-            ctx.fillStyle = "#FFD700";
-            ctx.fillText(`AIRPORT ${this.currentAirportIndex}`, 25, 105);
+            // Runner mode structure: Fixed Vertical facing up towards sky
+            ctx.rotate(-Math.PI / 2); 
         } else {
-            ctx.fillStyle = "#2ecc71";
-            ctx.fillText("FREE FLIGHT", 25, 75);
+            // Free flight mode structure: Facing Horizon Horizontal orientation
+            ctx.rotate(0); 
         }
-
-        this.drawVersionInfo();
-    }
-
-    drawVersionInfo() {
-        ctx.save();
-        ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-        ctx.font = "12px Courier New";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "bottom";
-        ctx.fillText("V21.2 STABLE", 20, canvas.height - 20);
+        
+        ctx.drawImage(this.assets.planeImg, -45, -60, 90, 120);
         ctx.restore();
-    }
 
-    run() {
-        const loop = () => {
-            this.update();
-            this.draw();
-            requestAnimationFrame(loop);
-        };
-        requestAnimationFrame(loop);
+        // Target Floating Alphabets Rendering
+        this.spawnedLetters.forEach(l => {
+            if (l.collected) return;
+            ctx.fillStyle = l.char === this.targetLetter ? "#FFD700" : "#FFFFFF";
+            ctx.font = this.currentProfile === Profile.TODDLER ? "bold 75px Arial" : "bold 55px Arial"; // Larger letters for Toddlers
+            ctx.fillText(l.char, l.x, l.y);
+        });
+
+        // Heads Up Dashboard Info
+        ctx.fillStyle = "#00FFFF";
+        ctx.font = "bold 32px Arial";
+        ctx.fillText(`SCORE: ${this.score}`, 30, 60);
+        ctx.fillText(`PROFILE: ${this.currentProfile}`, 30, 100);
+        
+        ctx.fillStyle = "#FFD700";
+        ctx.font = "bold 45px Arial";
+        ctx.fillText(`HIT: ${this.targetLetter}`, canvas.width - 240, 60);
+        
+        this.particles.forEach(p => { ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2); ctx.fill(); });
+        this.bursts.forEach(b => { ctx.globalAlpha = b.alpha; ctx.strokeStyle = "#00FFCC"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2); ctx.stroke(); });
     }
 }
 
-// Auto-Launch Engine Instance
-const gameInstance = new AeroAlphaGame();
-gameInstance.run();
+const game = new AeroAlphaGame();
+function main() { game.update(); game.draw(); requestAnimationFrame(main); }
+main();
