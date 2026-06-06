@@ -98,7 +98,7 @@ class AeroAlphaGame {
         this.isBoosting = false;
         this.boostTimer = 0;
         this.particles = [];
-        this.bursts = [];
+        this.bursts = []; // Unified rainbow shockwave collector
         this.confetti = [];
 
         this.assets = {
@@ -116,15 +116,16 @@ class AeroAlphaGame {
         this.assets.clouds_1.src = "assets/images/clouds_1.png";
         this.assets.clouds_2.src = "assets/images/clouds_2.png";
 
-        // --- ASSET MIRRORING CONFIGURATION MATRIX ---
-        // isFlipped: Handles left-facing native artwork assets dynamically.
-        // targetJetStreamAngle: Gives each unique plane an distinct freshness climb angle.
+        // --- UNIFIED NORTH-EAST VECTOR SKIN MATRIX ---
+        // 'artOrientation' defines how the source PNG image was drawn natively:
+        // 'RIGHT' means nose points east, 'LEFT' means nose points west, 'UP' means nose points north.
+        // The rendering pipe standardizes all of them cleanly to North-East (45° climb).
         this.skinCollection = [
-            { id: 0, level: 1, file: "plane_trainer.png", img: new Image(), name: "Trainer", targetJetStreamAngle: 15, isFlipped: false },
-            { id: 1, level: 3, file: "plane_falcon.png",  img: new Image(), name: "Falcon",  targetJetStreamAngle: 18, isFlipped: true  }, 
-            { id: 2, level: 5, file: "plane_glider.png",  img: new Image(), name: "Glider",  targetJetStreamAngle: 20, isFlipped: false },
-            { id: 3, level: 7, file: "plane_gold.png",    img: new Image(), name: "Gold",    targetJetStreamAngle: 22, isFlipped: true  }, 
-            { id: 4, level: 9, file: "plane_legend.png",  img: new Image(), name: "Legend",  targetJetStreamAngle: 25, isFlipped: true  }  
+            { id: 0, level: 1, file: "plane_trainer.png", img: new Image(), name: "Trainer", targetJetStreamAngle: 15, artOrientation: "RIGHT" },
+            { id: 1, level: 3, file: "plane_falcon.png",  img: new Image(), name: "Falcon",  targetJetStreamAngle: 18, artOrientation: "LEFT"  }, 
+            { id: 2, level: 5, file: "plane_glider.png",  img: new Image(), name: "Glider",  targetJetStreamAngle: 20, artOrientation: "RIGHT" },
+            { id: 3, level: 7, file: "plane_gold.png",    img: new Image(), name: "Gold",    targetJetStreamAngle: 22, artOrientation: "LEFT"  }, 
+            { id: 4, level: 9, file: "plane_legend.png",  img: new Image(), name: "Legend",  targetJetStreamAngle: 25, artOrientation: "LEFT"  }  
         ];
         
         this.skinCollection.forEach(skin => {
@@ -159,36 +160,43 @@ class AeroAlphaGame {
     }
 
     initControls() {
+        // --- UNIVERSAL KEYBOARD / SMART TV REMOTE ENGINE ---
         window.addEventListener("keydown", (e) => {
-            if (e.key === "Escape") {
+            // Support native Android TV/Tizen/WebOS remote key identifiers alongside standard keyboards
+            const key = e.key;
+            
+            if (key === "Escape" || key === "Back" || key === "XF86Back" || e.keyCode === 461 || e.keyCode === 10009) {
                 this.exitToMenu();
                 return;
             }
 
             if (this.state === GameState.MENU) {
-                if (e.key === "ArrowLeft") this.currentProfile = Profile.HAMZA;
-                if (e.key === "ArrowRight") this.currentProfile = Profile.MARIAM;
-                if (e.key === "ArrowUp") this.selectedMode = GameMode.JET_STREAM;
-                if (e.key === "ArrowDown") this.selectedMode = GameMode.FREE_FLIGHT;
-                if (e.key === "Enter" || e.key === " ") {
+                if (key === "ArrowLeft" || e.keyCode === 37) this.currentProfile = Profile.HAMZA;
+                if (key === "ArrowRight" || e.keyCode === 39) this.currentProfile = Profile.MARIAM;
+                if (key === "ArrowUp" || e.keyCode === 38) this.selectedMode = GameMode.JET_STREAM;
+                if (key === "ArrowDown" || e.keyCode === 40) this.selectedMode = GameMode.FREE_FLIGHT;
+                if (key === "Enter" || key === " " || key === "Select" || e.keyCode === 13 || e.keyCode === 29443) {
                     this.requestNativeFullScreen();
                     this.startGame();
                 }
                 return;
             }
 
+            // Gameplay navigation steps for TV remote clicks & Keyboard taps
             let step = this.currentProfile === Profile.HAMZA ? 100 : 60;
-            if (e.key === "ArrowLeft") this.player.targetX = Math.max(100, this.player.targetX - step);
-            if (e.key === "ArrowRight") this.player.targetX = Math.min(canvas.width - 100, this.player.targetX + step);
-            if (e.key === "ArrowUp") this.player.targetY = Math.max(canvas.height * 0.3, this.player.targetY - step);
-            if (e.key === "ArrowDown") this.player.targetY = Math.min(canvas.height * 0.85, this.player.targetY + step);
+            if (key === "ArrowLeft" || e.keyCode === 37) this.player.targetX = Math.max(100, this.player.targetX - step);
+            if (key === "ArrowRight" || e.keyCode === 39) this.player.targetX = Math.min(canvas.width - 100, this.player.targetX + step);
+            if (key === "ArrowUp" || e.keyCode === 38) this.player.targetY = Math.max(canvas.height * 0.3, this.player.targetY - step);
+            if (key === "ArrowDown" || e.keyCode === 40) this.player.targetY = Math.min(canvas.height * 0.85, this.player.targetY + step);
             
-            if (e.key === " ") {
+            // TV Play/Pause button or Spacebar triggers turbo kinetics boost
+            if (key === " " || key === "MediaPlayPause" || key === "PlaySpeedChanged" || e.keyCode === 10252 || e.keyCode === 415) {
                 this.isBoosting = true;
                 this.boostTimer = 40;
             }
         });
 
+        // Retention of existing mobile pointer tracking controls
         canvas.addEventListener("click", (e) => {
             this.requestNativeFullScreen();
             const rect = canvas.getBoundingClientRect();
@@ -234,6 +242,7 @@ class AeroAlphaGame {
         this.score = 0;
         this.alphabetIndex = 0;
         this.confetti = [];
+        this.bursts = [];
     }
 
     startGame() {
@@ -362,7 +371,7 @@ class AeroAlphaGame {
             if (this.boostTimer % 2 === 0) {
                 this.particles.push({
                     x: this.player.x - 10 + Math.random() * 20,
-                    y: this.player.y + 35,
+                    y: this.player.y + 45,
                     vx: (Math.random() - 0.5) * 3,
                     vy: Math.random() * 4 + 5,
                     radius: Math.random() * 6 + 8,
@@ -375,21 +384,17 @@ class AeroAlphaGame {
         this.player.x += (this.player.targetX - this.player.x) * 0.12;
         this.player.y += (this.player.targetY - this.player.y) * 0.12;
 
-        // --- CALCULATE PHYSICS PITCH ANGLE BASED ON ENGINE MODE ---
+        // --- CORE JET STREAM PITCH CALCULATOR ---
         let currentSkin = this.getSelectedSkin();
         let targetAngleDegrees = 0;
 
         if (this.selectedMode === GameMode.JET_STREAM) {
-            // Apply unique climb angle assigned to the active airplane skin
             targetAngleDegrees = -currentSkin.targetJetStreamAngle;
-            
-            // Add bank angle drift on left/right navigation movements
             let bankingDrift = (this.player.targetX - this.player.x) * 0.05;
             targetAngleDegrees += bankingDrift;
         } else {
-            targetAngleDegrees = 0; // Flat horizontal flying profile for Free Flight
+            targetAngleDegrees = 0; 
         }
-
         this.player.angle = targetAngleDegrees * Math.PI / 180;
 
         if (this.state === GameState.SKY_FLIGHT) {
@@ -400,7 +405,22 @@ class AeroAlphaGame {
                     letter.collected = true;
                     if (letter.char === this.targetLetter) {
                         this.score += 10;
-                        this.bursts.push({ x: letter.x, y: letter.y, radius: 15, alpha: 1.0 });
+                        
+                        // --- MULTI-PARTICLE RAINBOW SHOCKWAVE TRIGGER ---
+                        // Spawns 16 high-velocity expanding color nodes forming a rainbow blast circle
+                        for (let p = 0; p < 16; p++) {
+                            let ringAngle = (p / 16) * Math.PI * 2;
+                            this.bursts.push({
+                                x: letter.x,
+                                y: letter.y,
+                                vx: Math.cos(ringAngle) * 5,
+                                vy: Math.sin(ringAngle) * 5,
+                                radius: Math.random() * 4 + 4,
+                                hue: (p * 22.5), // Maps cleanly across full 360 HSL color spectrum
+                                alpha: 1.0
+                            });
+                        }
+
                         this.alphabetIndex++;
                         this.currentLevel = Math.floor(this.score / 50) + 1;
                         if (this.currentProfile === Profile.MARIAM) {
@@ -420,7 +440,15 @@ class AeroAlphaGame {
             p.x += p.vx; p.y += p.vy; p.radius += 0.4; p.alpha -= 0.035; 
             if (p.alpha <= 0) this.particles.splice(idx, 1); 
         });
-        this.bursts.forEach((b, idx) => { b.radius += 4; b.alpha -= 0.04; if (b.alpha <= 0) this.bursts.splice(idx, 1); });
+
+        // Update Rainbow Shockwave Particles
+        this.bursts.forEach((b, idx) => {
+            b.x += b.vx;
+            b.y += b.vy;
+            b.radius += 0.2;
+            b.alpha -= 0.03;
+            if (b.alpha <= 0) this.bursts.splice(idx, 1);
+        });
     }
 
     draw() {
@@ -490,10 +518,15 @@ class AeroAlphaGame {
                 ctx.save();
                 if (!isUnlocked) ctx.globalAlpha = 0.25;
                 
-                // --- HANGAR MENU ITEM MIRROR RENDERING ---
+                // --- MENU THUMBNAIL NORTH-EAST VECTOR ALIGNMENT ---
                 ctx.translate(bx + 47, hY + 52);
-                if (skin.isFlipped) {
+                if (skin.artOrientation === "LEFT") {
                     ctx.scale(-1, 1);
+                    ctx.rotate(-25 * Math.PI / 180); // Forces left-drawn skins to sit gracefully at 25° up-right
+                } else if (skin.artOrientation === "RIGHT") {
+                    ctx.rotate(-25 * Math.PI / 180); // Forces right-drawn skins to sit gracefully at 25° up-right
+                } else if (skin.artOrientation === "UP") {
+                    ctx.rotate(20 * Math.PI / 180);  // Forces vertical-drawn skins to tilt rightward
                 }
                 ctx.drawImage(skin.img, -37, -27, 75, 55);
                 ctx.restore();
@@ -513,7 +546,7 @@ class AeroAlphaGame {
         ctx.strokeStyle = "#FF3333"; ctx.strokeRect(canvas.width - 130, canvas.height - 50, 110, 40);
         ctx.fillStyle = "#FFF"; ctx.font = "normal 14px BalooBhaijaan, sans-serif"; ctx.fillText("EXIT GAME", canvas.width - 75, canvas.height - 25);
 
-        ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "normal 12px BalooBhaijaan, sans-serif"; ctx.fillText("V25.0 STABLE", 60, canvas.height - 25);
+        ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "normal 12px BalooBhaijaan, sans-serif"; ctx.fillText("V26.0 STABLE", 60, canvas.height - 25);
     }
 
     drawGameplayScreen() {
@@ -564,33 +597,44 @@ class AeroAlphaGame {
             });
         }
 
-        // --- ACTIVE FLIGHT FIELD MIRROR & CLIMB RE-ENGINEERING ---
+        // --- ENHANCED: PROPORTIONATE AIRCRAFT RENDERING ENGINE ---
         ctx.save();
         ctx.translate(this.player.x, this.player.y);
         
         let activeSkin = this.getSelectedSkin();
 
-        // Canvas Scale coordinates flip logic
-        if (activeSkin.isFlipped) {
-            // Inverting the rotation math allows a left-facing image to climb correctly
-            ctx.rotate(-this.player.angle);
+        // 1. Process Horizon Face Transformations to ensure a standard North-East (45° up-right) direction vector
+        if (activeSkin.artOrientation === "LEFT") {
+            ctx.rotate(-this.player.angle); 
             ctx.scale(-1, 1); 
-        } else {
+        } else if (activeSkin.artOrientation === "RIGHT") {
             ctx.rotate(this.player.angle);
+        } else if (activeSkin.artOrientation === "UP") {
+            ctx.rotate(this.player.angle + (90 * Math.PI / 180)); 
         }
 
-        let planeW = canvas.width * 0.16; 
+        // 2. Proportionately scaled plane size footprint (+25% visual balance increase)
+        let planeW = canvas.width * 0.20; 
         let planeH = planeW * 0.75;
         
         if (activeSkin.img.complete) {
+            // image smoothing flags preserve sharp pixels during dynamic canvas redraw cycles
+            ctx.imageSmoothingEnabled = true;
             ctx.drawImage(activeSkin.img, -planeW / 2, -planeH / 2, planeW, planeH);
         } else {
             ctx.fillStyle = "#FF0000"; ctx.fillRect(-50, -35, 100, 70);
         }
         ctx.restore();
 
+        // --- RENDERING RAINBOW SHOCKWAVE PARTICLES ---
         this.bursts.forEach(b => {
-            ctx.save(); ctx.globalAlpha = b.alpha; ctx.strokeStyle = "#00FFFF"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+            ctx.save();
+            ctx.globalAlpha = b.alpha;
+            ctx.fillStyle = `hsl(${b.hue}, 100%, 60%)`;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
         });
 
         this.drawHUD();
